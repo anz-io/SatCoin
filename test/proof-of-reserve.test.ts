@@ -2,15 +2,16 @@ import { expect } from "chai"
 import { ethers, upgrades } from "hardhat"
 import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox/network-helpers"
 import { deployUpgradeableContract } from "../scripts/utils"
-import { ProofOfReserve } from "../typechain-types"
+import { ProofOfReserve, SatCoin } from "../typechain-types"
 
 describe("ProofOfReserve", function () {
 
   async function deployContracts() {
     const [admin, user] = await ethers.getSigners()
     const por = (await deployUpgradeableContract("ProofOfReserve", [])) as ProofOfReserve
+    const satcoin = (await deployUpgradeableContract("SatCoin", [])) as SatCoin
 
-    return { por, admin, user }
+    return { por, satcoin, admin, user }
   }
 
 
@@ -178,6 +179,18 @@ describe("ProofOfReserve", function () {
     expect(entries[0].btcBalance).to.equal(1000000)
     expect(entries[1].btcBalance).to.equal(1100000)
     expect(entries[2].btcBalance).to.equal(1200000)
+
+    // Revert cases
+    await expect(por.getEntryByIndex(3))
+      .to.be.revertedWith("PoR: index out of bounds")
+    await expect(por.getEntries(1, 0))
+      .to.be.revertedWith("PoR: startIndex too large")
+    await expect(por.getEntries(0, 5))
+      .to.be.revertedWith("PoR: endIndex out of bounds")
+    await expect(por.getEntryByBtcAddress(addresses[0] + '1'))
+      .to.be.revertedWith("PoR: btcAddress not found")
+    await expect(por.initialize())
+      .to.be.revertedWithCustomError(por, "InvalidInitialization")
   })
 
 
@@ -207,6 +220,21 @@ describe("ProofOfReserve", function () {
         btcAddress
       )
     ).to.be.revertedWithCustomError(por, "OwnableUnauthorizedAccount")
+  })
+
+
+  it("should mint satcoin correctly", async function () {
+    const { satcoin, user } = await loadFixture(deployContracts)
+    
+    const balanceBefore = await satcoin.balanceOf(user.address)
+    await satcoin.mint(user.address, 1000000)
+    const balanceAfter = await satcoin.balanceOf(user.address)
+    expect(balanceAfter).to.equal(balanceBefore + 1000000n)
+
+    await expect(satcoin.connect(user).mint(user.address, 1000000))
+      .to.be.revertedWithCustomError(satcoin, "OwnableUnauthorizedAccount")
+    await expect(satcoin.initialize())
+      .to.be.revertedWithCustomError(satcoin, "InvalidInitialization")
   })
 
 })

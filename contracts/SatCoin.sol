@@ -5,9 +5,6 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 
 contract SatCoin is ERC20Upgradeable, Ownable2StepUpgradeable {
-    constructor() {
-        _disableInitializers();
-    }
 
     function initialize() public initializer {
         __ERC20_init("SatCoin", "SAT");
