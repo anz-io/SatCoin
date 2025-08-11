@@ -17,10 +17,6 @@ contract ProofOfReserve is Ownable2StepUpgradeable {
     ReserveData[] internal reserveEntries;
     mapping(string => uint256) internal btcAddressIndex;
 
-    constructor() {
-        _disableInitializers();
-    }
-
     function initialize() public initializer {
         __Ownable_init(_msgSender());
         __Ownable2Step_init();
@@ -44,8 +40,8 @@ contract ProofOfReserve is Ownable2StepUpgradeable {
     }
 
     function getEntries(uint256 startIndex, uint256 endIndex) public view returns (ReserveData[] memory) {
-        require(endIndex < reserveEntries.length - 1, "PoR: endIndex out of bounds");
-        require(startIndex <= endIndex, "PoR: startIndex too large");
+        require(endIndex < reserveEntries.length, "PoR: endIndex out of bounds");
+        require(startIndex < endIndex, "PoR: startIndex too large");
         ReserveData[] memory entries = new ReserveData[](endIndex - startIndex);
         for (uint256 i = startIndex; i < endIndex; i++) {
             entries[i - startIndex] = reserveEntries[i + 1];
