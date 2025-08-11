@@ -2,7 +2,7 @@ import "dotenv/config"
 import { upgradeContract } from "./utils"
 
 async function main() {
-  await upgradeContract(process.env.USDC_ADDRESS!, "UpgradeableUSDC")
+  await upgradeContract(process.env.SEPOLIA_POR!, "ProofOfReserve", true)
 }
 
 main()

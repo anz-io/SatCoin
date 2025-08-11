@@ -1,11 +1,9 @@
-import { UpgradeableUSDC } from "../typechain-types"
 import "dotenv/config"
-import { deployContract, deployUpgradeableContract } from "./utils"
+import { deployUpgradeableContract } from "./utils"
 
 async function main() {
-  await deployUpgradeableContract(
-    "UpgradeableUSDC", []
-  )
+  await deployUpgradeableContract("ProofOfReserve", [], true)
+  await deployUpgradeableContract("SatCoin", [], true)
 }
 
 main()
