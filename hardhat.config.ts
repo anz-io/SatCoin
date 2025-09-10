@@ -12,11 +12,18 @@ const config: HardhatUserConfig = {
       accounts: [
         process.env.PRIVATE_KEY_ADMIN!,
       ]
+    },
+    bnb: {
+      url: process.env.RPC_BNB,
+      accounts: [
+        process.env.PRIVATE_KEY_ADMIN!,
+      ]
     }
   },
   etherscan: {
     apiKey: {
       sepolia: process.env.API_ETHERSCAN!,
+      bsc: process.env.API_ETHERSCAN!,
     }
   }
 };
