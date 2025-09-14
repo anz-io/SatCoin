@@ -1,10 +1,11 @@
 {
-  "name": "R-SatCoin-POR",
+  "name": "SatCoin",
   "version": "1.0.0",
   "main": "index.js",
   "author": "wyf-ACCEPT <43724111+wyf-ACCEPT@users.noreply.github.com>",
   "license": "MIT",
   "devDependencies": {
+    "@chainlink/contracts": "^1.4.0",
     "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
     "@nomicfoundation/hardhat-ethers": "^3.1.0",
     "@nomicfoundation/hardhat-ignition": "^0.15.13",
@@ -30,5 +31,6 @@
     "ts-node": "^10.9.2",
     "typechain": "^8.3.2",
     "typescript": "^5.9.2"
-  }
+  },
+  "dependencies": {}
 }
