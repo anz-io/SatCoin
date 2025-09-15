@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 // ====================================================================
 // This file is part of the SatCoin project.
 //
-// THIS FILE IS A *UNMODIFIED* VERSION OF THE ORIGINAL WORK
+// THIS FILE IS A *MODIFIED* VERSION OF THE ORIGINAL WORK
 // FROM THE `morpho-blue` PROJECT.
 //
 // The original source code can be found at:
@@ -29,6 +29,12 @@ library MathLib {
     /// @dev Returns (`x` * `WAD`) / `y` rounded down.
     function wDivDown(uint256 x, uint256 y) internal pure returns (uint256) {
         return mulDivDown(x, WAD, y);
+    }
+
+    /// @dev Returns (`x` * `y`) / `WAD` rounded up.
+    /// @notice This function is added to the original work.
+    function wMulUp(uint256 x, uint256 y) internal pure returns (uint256) {
+        return mulDivUp(x, y, WAD);
     }
 
     /// @dev Returns (`x` * `WAD`) / `y` rounded up.

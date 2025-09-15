@@ -65,16 +65,23 @@ contract Teller is Ownable2StepUpgradeable {
     event SupportedTokenAdded(address indexed token, uint8 decimals);
     event SupportedTokenRemoved(address indexed token);
     event SlippageCoefficientSet(uint256 newCoefficient);
-    // event Trade(
-    //     address indexed user,
-    //     address indexed tokenIn,
-    //     address indexed tokenOut,
-    //     uint256 amountIn,
-    //     uint256 amountOut
-    // );
     event Deposited(address indexed token, address indexed from, uint256 amount);
     event Withdrawn(address indexed token, address indexed to, uint256 amount);
     event FeeRateSet(uint256 oldFeeRate, uint256 newFeeRate);
+    event Bought(
+        address indexed user,
+        address indexed tokenIn,
+        uint256 amountInStableCoin,
+        uint256 amountOutSatCoin,
+        uint256 feeInSatCoin
+    );
+    event Sold(
+        address indexed user,
+        address indexed tokenOut,
+        uint256 amountInSatCoin,
+        uint256 amountOutStableCoin,
+        uint256 feeInStableCoin
+    );
 
 
     // --- Constructor ---
@@ -212,171 +219,218 @@ contract Teller is Ownable2StepUpgradeable {
         return satcoinAmount.wMulDown(slippageCoefficient);
     }
 
+    /**
+     * @notice Previews the amount of SatCoin that can be received for an exact amount of `tokenIn`.
+     * @param amountIn The amount of the stablecoin being paid.
+     * @param tokenIn The address of the stablecoin being paid.
+     * @return satCoinAmountOut The expected amount of SatCoin to be received after fees.
+     * @return feeAmount The fee charged for the trade, denominated in SatCoin.
+     */
+    function previewBuyExactIn(
+        uint256 amountIn, 
+        address tokenIn
+    ) public view returns (uint256 satCoinAmountOut, uint256 feeAmount) {
+        // 1. Check conditions and calculate the ideal SatCoin output amount.
+        require(stablecoinDecimals[tokenIn] > 0, "Teller: Token not supported");
+        uint256 price = getPrice(stablecoinDecimals[tokenIn]);
+        uint256 idealSatCoinOut = amountIn.wDivDown(price);
+        require(idealSatCoinOut <= MAX_TRADE_SATCOIN_EQUIVALENT, "Teller: Trade size exceeds limit");
+
+        // 2. Calculate the amount after applying slippage.
+        uint256 slippage = calculateSlippage(idealSatCoinOut);
+        uint256 satCoinOutAfterSlippage = idealSatCoinOut.wMulDown(WAD - slippage);
+
+        // 3. Calculate the fee and the final output amount.
+        feeAmount = satCoinOutAfterSlippage.wMulDown(feeRate);
+        satCoinAmountOut = satCoinOutAfterSlippage - feeAmount;
+    }
+
+    /**
+     * @notice Previews the amount of stablecoin that received for selling an exact amount of SatCoin.
+     * @param amountIn The amount of SatCoin being paid.
+     * @param tokenOut The address of the stablecoin to be received.
+     * @return stablecoinAmountOut The expected amount of stablecoin to be received after fees.
+     * @return feeAmount The fee charged for the trade, denominated in the stablecoin (`tokenOut`).
+     */
+    function previewSellExactIn(
+        uint256 amountIn, 
+        address tokenOut
+    ) public view returns (uint256 stablecoinAmountOut, uint256 feeAmount) {
+        // 1. Check conditions and calculate the ideal stablecoin output amount.
+        require(amountIn <= MAX_TRADE_SATCOIN_EQUIVALENT, "Teller: Trade size exceeds limit");
+        require(stablecoinDecimals[tokenOut] > 0, "Teller: Token not supported");
+        uint256 price = getPrice(stablecoinDecimals[tokenOut]);
+        uint256 idealStablecoinOut = amountIn.wMulDown(price);
+
+        // 2. Calculate the amount after applying slippage.
+        uint256 slippage = calculateSlippage(amountIn);
+        uint256 stablecoinOutAfterSlippage = idealStablecoinOut.wMulDown(WAD - slippage);
+
+        // 3. Calculate the fee and the final output amount.
+        feeAmount = stablecoinOutAfterSlippage.wMulDown(feeRate);
+        stablecoinAmountOut = stablecoinOutAfterSlippage - feeAmount;
+    }
+
+    /**
+     * @notice Previews the amount of stablecoin required to receive an exact amount of SatCoin.
+     * @param amountOut The exact amount of SatCoin to be received after fees.
+     * @param tokenIn The address of the stablecoin to be paid.
+     * @return stablecoinAmountIn The expected amount of stablecoin required to be paid.
+     * @return feeAmount The fee that will be charged  denominated in SatCoin.
+     */
+    function previewBuyExactOut(
+        uint256 amountOut, 
+        address tokenIn
+    ) public view returns (uint256 stablecoinAmountIn, uint256 feeAmount) {
+        // 1. Reverse calculate the amount before the fee is applied (rounding up).
+        require(stablecoinDecimals[tokenIn] > 0, "Teller: Token not supported");
+        uint256 satcoinAmountBeforeFee = amountOut.wDivUp(WAD - feeRate);
+        feeAmount = satcoinAmountBeforeFee - amountOut;
+        require(
+            satcoinAmountBeforeFee <= MAX_TRADE_SATCOIN_EQUIVALENT, 
+            "Teller: Trade size exceeds limit"
+        );
+
+        // 2. Reverse calculate the ideal amount before slippage (rounding up).
+        uint256 slippage = calculateSlippage(satcoinAmountBeforeFee);
+        uint256 idealSatCoinAmount = satcoinAmountBeforeFee.wDivUp(WAD - slippage);
+
+        // 3. Calculate the final stablecoin input amount (rounding up).
+        uint256 price = getPrice(stablecoinDecimals[tokenIn]);
+        stablecoinAmountIn = idealSatCoinAmount.wMulUp(price);
+    }
+
+    /**
+     * @notice Previews the amount of SatCoin required to receive an exact amount of a stablecoin.
+     * @param amountOut The exact amount of the stablecoin to be received after fees.
+     * @param tokenOut The address of the stablecoin to be received.
+     * @return satCoinAmountIn The expected amount of SatCoin required to be paid.
+     * @return feeAmount The fee that will be charged denominated in the stablecoin (`tokenOut`).
+     */
+    function previewSellExactOut(
+        uint256 amountOut, 
+        address tokenOut
+    ) public view returns (uint256 satCoinAmountIn, uint256 feeAmount) {
+        // 1. Reverse calculate the amount before the fee is applied (rounding up).
+        require(stablecoinDecimals[tokenOut] > 0, "Teller: Token not supported");
+        uint256 stablecoinAmountBeforeFee = amountOut.wDivUp(WAD - feeRate);
+        feeAmount = stablecoinAmountBeforeFee - amountOut;
+        uint256 price = getPrice(stablecoinDecimals[tokenOut]);
+
+        // 2. Estimate the SatCoin input to calculate slippage.
+        uint256 estimatedSatCoinIn = stablecoinAmountBeforeFee.wDivUp(price);
+        require(
+            estimatedSatCoinIn <= MAX_TRADE_SATCOIN_EQUIVALENT, 
+            "Teller: Trade size exceeds limit"
+        );
+        uint256 slippage = calculateSlippage(estimatedSatCoinIn);
+
+        // 3. Reverse calculate the ideal stablecoin amount before slippage (rounding up).
+        uint256 idealStablecoinAmount = stablecoinAmountBeforeFee.wDivUp(WAD - slippage);
+        satCoinAmountIn = idealStablecoinAmount.wDivUp(price);
+    }
+
 
     // --- Public User Functions ---
 
-    // /**
-    //  * @notice Swaps an exact amount of a supported stablecoin for SatCoin.
-    //  * @param tokenIn The address of the stablecoin being paid.
-    //  * @param amountIn The amount of stablecoin being paid.
-    //  * @param minAmountOut The minimum amount of SatCoin the user is willing to receive.
-    //  * @return satCoinAmountOut The amount of SatCoin received.
-    //  */
-    function buySatCoinExactIn(
-        address tokenIn,
+    /**
+     * @notice Swaps an exact amount of a supported stablecoin for SatCoin.
+     * @param amountIn The exact amount of stablecoin being paid.
+     * @param tokenIn The address of the stablecoin being paid.
+     * @param minAmountOut The minimum amount of SatCoin the user is willing to receive.
+     * @return satCoinAmountOut The amount of SatCoin received after fees.
+     * @return feeAmount The fee charged for the trade, denominated in SatCoin.
+     */
+    function buyExactIn(
         uint256 amountIn,
+        address tokenIn,
         uint256 minAmountOut
-    ) public returns (uint256) {
-    //     uint256 btcPrice = _getBtcPrice(tokenIn);
-    //     uint8 stablecoinDecimals = IERC20Metadata(tokenIn).decimals();
+    ) public returns (uint256 satCoinAmountOut, uint256 feeAmount) {
+        // Preview the output amount
+        (satCoinAmountOut, feeAmount) = previewBuyExactIn(amountIn, tokenIn);
+        require(satCoinAmountOut >= minAmountOut, "Teller: Insufficient output amount");
 
-        // 1. Check conditions
-        require(stablecoinDecimals[tokenIn] > 0, "Teller: Token not supported");
-        require(amountIn > 0, "Teller: Invalid amount");
+        // Transfer tokens
+        IERC20(tokenIn).safeTransferFrom(_msgSender(), address(this), amountIn);
+        satCoin.safeTransfer(_msgSender(), satCoinAmountOut);
 
-        // 2. Calculate SatCoin equivalent of the input amount
-        uint256 satcoinPrice = getPrice(stablecoinDecimals[tokenIn]);
-        uint256 satcoinAmountWithFee = amountIn.wDivDown(satcoinPrice);
-        require(
-            satcoinAmountWithFee <= MAX_TRADE_SATCOIN_EQUIVALENT, 
-            "Teller: Trade size exceeds 100 BTC limit"
-        );
-
-        // 3. Calculate SatCoin amount to be received
-        uint256 slippage = calculateSlippage(satcoinAmountWithFee);
-
-    //     uint256 satoshiAmount = (btcAmount * BASIS_POINTS) /
-    //         (BASIS_POINTS + slippageBps);
-    //     uint256 satCoinDecimals = IERC20Metadata(address(satCoin)).decimals();
-    //     satCoinAmountOut =
-    //         (satoshiAmount * (10 ** satCoinDecimals)) /
-    //         BTC_TO_SATOSHI;
-
-    //     require(
-    //         satCoinAmountOut >= minAmountOut,
-    //         "Teller: Slippage tolerance not met"
-    //     );
-
-    //     // 4. Perform token transfers
-    //     IERC20(tokenIn).safeTransferFrom(_msgSender(), address(this), amountIn);
-    //     satCoin.safeTransfer(_msgSender(), satCoinAmountOut);
-
-    //     emit Trade(
-    //         _msgSender(),
-    //         tokenIn,
-    //         address(satCoin),
-    //         amountIn,
-    //         satCoinAmountOut
-    //     );
+        // Event
+        emit Bought(_msgSender(), tokenIn, amountIn, satCoinAmountOut, feeAmount);
     }
 
-    // /**
-    //  * @notice Swaps an exact amount of SatCoin for a supported stablecoin.
-    //  * @param tokenOut The address of the stablecoin to receive.
-    //  * @param amountIn The amount of SatCoin being paid.
-    //  * @param minAmountOut The minimum amount of stablecoin the user is willing to receive.
-    //  * @return stableCoinAmountOut The amount of stablecoin received.
-    //  */
-    // function sellSatCoin(
-    //     address tokenOut,
-    //     uint256 amountIn,
-    //     uint256 minAmountOut
-    // ) public returns (uint256 stableCoinAmountOut) {
-    //     uint256 btcPrice = _getBtcPrice(tokenOut);
-    //     uint256 satCoinDecimals = IERC20Metadata(address(satCoin)).decimals();
+    /**
+     * @notice Swaps an exact amount of SatCoin for a supported stablecoin.
+     * @param amountIn The exact amount of SatCoin being paid.
+     * @param tokenOut The address of the stablecoin to receive.
+     * @param minAmountOut The minimum amount of stablecoin the user is willing to receive.
+     * @return stablecoinAmountOut The amount of stablecoin received after fees.
+     * @return feeAmount The fee charged for the trade, denominated in the stablecoin.
+     */
+    function sellExactIn(
+        uint256 amountIn,
+        address tokenOut,
+        uint256 minAmountOut
+    ) public returns (uint256 stablecoinAmountOut, uint256 feeAmount) {
+        // Preview the output amount
+        (stablecoinAmountOut, feeAmount) = previewSellExactIn(amountIn, tokenOut);
+        require(stablecoinAmountOut >= minAmountOut, "Teller: Insufficient output amount");
 
-    //     // 1. Calculate BTC equivalent of the input amount
-    //     uint256 satoshiAmount = (amountIn * BTC_TO_SATOSHI) /
-    //         (10 ** satCoinDecimals);
-    //     uint256 btcAmount = satoshiAmount; // Assuming 1 satoshi = 1 BTC unit at 8 decimals.
+        // Transfer tokens
+        satCoin.safeTransferFrom(_msgSender(), address(this), amountIn);
+        IERC20(tokenOut).safeTransfer(_msgSender(), stablecoinAmountOut);
 
-    //     require(
-    //         btcAmount <= MAX_TRADE_BTC_EQUIVALENT,
-    //         "Teller: Trade size exceeds 100 BTC limit"
-    //     );
+        // Event
+        emit Sold(_msgSender(), tokenOut, amountIn, stablecoinAmountOut, feeAmount);
+    }
 
-    //     // 2. Calculate slippage
-    //     uint256 slippageBps = _calculateSlippage(btcAmount);
+    /**
+     * @notice Swaps a variable amount of stablecoin for an exact amount of SatCoin.
+     * @param amountOut The exact amount of SatCoin to receive.
+     * @param tokenIn The address of the stablecoin being paid.
+     * @param maxAmountIn The maximum amount of stablecoin the user is willing to pay.
+     * @return stablecoinAmountIn The amount of stablecoin paid.
+     * @return feeAmount The fee charged for the trade, denominated in SatCoin.
+     */
+    function buyExactOut(
+        uint256 amountOut,
+        address tokenIn,
+        uint256 maxAmountIn
+    ) public returns (uint256 stablecoinAmountIn, uint256 feeAmount) {
+        // Preview the input amount
+        (stablecoinAmountIn, feeAmount) = previewBuyExactOut(amountOut, tokenIn);
+        require(stablecoinAmountIn <= maxAmountIn, "Teller: Excessive input amount");
 
-    //     // 3. Calculate stablecoin amount to be received
-    //     uint8 stablecoinDecimals = IERC20Metadata(tokenOut).decimals();
-    //     uint256 baseStableAmount = (satoshiAmount *
-    //         btcPrice *
-    //         (10 ** (stablecoinDecimals - 8))) /
-    //         (10 ** 8);
-    //     stableCoinAmountOut =
-    //         (baseStableAmount * (BASIS_POINTS - slippageBps)) /
-    //         BASIS_POINTS;
+        // Transfer tokens
+        IERC20(tokenIn).safeTransferFrom(_msgSender(), address(this), stablecoinAmountIn);
+        satCoin.safeTransfer(_msgSender(), amountOut);
 
-    //     require(
-    //         stableCoinAmountOut >= minAmountOut,
-    //         "Teller: Slippage tolerance not met"
-    //     );
+        // Event
+        emit Bought(_msgSender(), tokenIn, stablecoinAmountIn, amountOut, feeAmount);
+    }
 
-    //     // 4. Perform token transfers
-    //     satCoin.safeTransferFrom(_msgSender(), address(this), amountIn);
-    //     IERC20(tokenOut).safeTransfer(_msgSender(), stableCoinAmountOut);
+    /**
+     * @notice Swaps a variable amount of SatCoin for an exact amount of a supported stablecoin.
+     * @param amountOut The exact amount of stablecoin to receive.
+     * @param tokenOut The address of the stablecoin to receive.
+     * @param maxAmountIn The maximum amount of SatCoin the user is willing to pay.
+     * @return satCoinAmountIn The amount of SatCoin paid.
+     * @return feeAmount The fee charged for the trade, denominated in the stablecoin.
+     */
+    function sellExactOut(
+        uint256 amountOut,
+        address tokenOut,
+        uint256 maxAmountIn
+    ) public returns (uint256 satCoinAmountIn, uint256 feeAmount) {
+        // Preview the input amount
+        (satCoinAmountIn, feeAmount) = previewSellExactOut(amountOut, tokenOut);
+        require(satCoinAmountIn <= maxAmountIn, "Teller: Excessive input amount");
 
-    //     emit Trade(
-    //         _msgSender(),
-    //         address(satCoin),
-    //         tokenOut,
-    //         amountIn,
-    //         stableCoinAmountOut
-    //     );
-    // }
+        // Transfer tokens
+        satCoin.safeTransferFrom(_msgSender(), address(this), satCoinAmountIn);
+        IERC20(tokenOut).safeTransfer(_msgSender(), amountOut);
 
-    // // --- Public View Functions ---
-
-    // /**
-    //  * @notice Calculates the expected output amount for a SatCoin purchase.
-    //  * @param tokenIn The address of the stablecoin being paid.
-    //  * @param amountIn The amount of stablecoin being paid.
-    //  * @return The expected amount of SatCoin to receive.
-    //  */
-    // function getAmountOutForBuy(
-    //     address tokenIn,
-    //     uint256 amountIn
-    // ) public view returns (uint256) {
-    //     uint256 btcPrice = _getBtcPrice(tokenIn);
-    //     uint8 stablecoinDecimals = IERC20Metadata(tokenIn).decimals();
-    //     uint256 btcAmount = (amountIn * (10 ** 8)) /
-    //         (btcPrice * (10 ** (stablecoinDecimals - 8)));
-    //     if (btcAmount > MAX_TRADE_BTC_EQUIVALENT) return 0;
-
-    //     uint256 slippageBps = _calculateSlippage(btcAmount);
-    //     uint256 satoshiAmount = (btcAmount * BASIS_POINTS) /
-    //         (BASIS_POINTS + slippageBps);
-    //     uint256 satCoinDecimals = IERC20Metadata(address(satCoin)).decimals();
-
-    //     return (satoshiAmount * (10 ** satCoinDecimals)) / BTC_TO_SATOSHI;
-    // }
-
-    // /**
-    //  * @notice Calculates the expected output amount for a SatCoin sale.
-    //  * @param tokenOut The address of the stablecoin to receive.
-    //  * @param amountIn The amount of SatCoin being paid.
-    //  * @return The expected amount of stablecoin to receive.
-    //  */
-    // function getAmountOutForSell(
-    //     address tokenOut,
-    //     uint256 amountIn
-    // ) public view returns (uint256) {
-    //     uint256 btcPrice = _getBtcPrice(tokenOut);
-    //     uint256 satCoinDecimals = IERC20Metadata(address(satCoin)).decimals();
-    //     uint256 satoshiAmount = (amountIn * BTC_TO_SATOSHI) /
-    //         (10 ** satCoinDecimals);
-    //     uint256 btcAmount = satoshiAmount;
-    //     if (btcAmount > MAX_TRADE_BTC_EQUIVALENT) return 0;
-
-    //     uint256 slippageBps = _calculateSlippage(btcAmount);
-    //     uint8 stablecoinDecimals = IERC20Metadata(tokenOut).decimals();
-    //     uint256 baseStableAmount = (satoshiAmount *
-    //         btcPrice *
-    //         (10 ** (stablecoinDecimals - 8))) /
-    //         (10 ** 8);
-
-    //     return (baseStableAmount * (BASIS_POINTS - slippageBps)) / BASIS_POINTS;
-    // }
+        // Event
+        emit Sold(_msgSender(), tokenOut, satCoinAmountIn, amountOut, feeAmount);
+    }
 
 }
