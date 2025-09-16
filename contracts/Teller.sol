@@ -24,7 +24,7 @@ using MathLib for uint256;
  */
 contract Teller is Ownable2StepUpgradeable {
 
-    // --- Constants ---
+    // ============================= Constants =============================
 
     /// @notice The maximum allowed trade size, equivalent to 100 BTC.
     uint256 public constant MAX_TRADE_SATCOIN_EQUIVALENT = 100 * 1e8 * 1e18;
@@ -34,20 +34,20 @@ contract Teller is Ownable2StepUpgradeable {
     /// So, 1 BTC (in wei) = 1e18 BTC wei = 1e8 sats (in wei) = 1e8 * 1e18 SatCoin wei.
     uint8 public constant BTC_TO_SATOSHI_DECIMALS = 8;
 
-    /// @notice The price feed decimals, fetch from priceFeed.decimals()
-    /// @dev immutable, but assigned in initialize()
+    /// @notice The price feed decimals, fetched from priceFeed.decimals()
+    /// @dev Set once in the initialize() function.
     uint8 public PRICE_FEED_DECIMALS;
 
     /// @notice The SatCoin token contract address.
-    /// @dev immutable, but assigned in initialize()
+    /// @dev Set once in the initialize() function.
     IERC20 public satCoin;
 
     /// @notice The price feed contract address (for BTC <> any stablecoin)
-    /// @dev immutable, but assigned in initialize()
+    /// @dev Set once in the initialize() function.
     AggregatorV3Interface public priceFeed;
 
 
-    // --- State Variables ---
+    // ============================== Storage ==============================
 
     /// @notice The coefficient for the slippage. Default to 1e7, representing 
     ///   1 BTC -> 0.1% slippage. This coefficient could be zero.
@@ -60,7 +60,7 @@ contract Teller is Ownable2StepUpgradeable {
     mapping(address => uint8) public stablecoinDecimals;
 
 
-    // --- Events ---
+    // =============================== Events ==============================
 
     event SupportedTokenAdded(address indexed token, uint8 decimals);
     event SupportedTokenRemoved(address indexed token);
@@ -84,7 +84,7 @@ contract Teller is Ownable2StepUpgradeable {
     );
 
 
-    // --- Constructor ---
+    // ============================ Constructor ============================
 
     /**
      * @notice Deploys the Teller contract.
@@ -98,6 +98,7 @@ contract Teller is Ownable2StepUpgradeable {
         address _satCoinAddress,
         address _priceFeedAddress
     ) public initializer {
+        require(_initialOwner != address(0), "Teller: Invalid initial owner");
         require(_satCoinAddress != address(0), "Teller: Invalid SatCoin address");
 
         __Ownable_init(_initialOwner);
@@ -106,20 +107,22 @@ contract Teller is Ownable2StepUpgradeable {
         satCoin = IERC20(_satCoinAddress);
         priceFeed = AggregatorV3Interface(_priceFeedAddress);
         slippageCoefficient = 1e7;  // Represent 1 BTC -> 0.1% slippage
+        feeRate = 0;
         PRICE_FEED_DECIMALS = priceFeed.decimals();
     }
 
 
-    // --- Admin Functions ---
+    // ====================== Write functions - admin ======================
 
     /**
      * @notice Adds a supported stablecoin.
      * @param tokenAddress The address of the stablecoin ERC20 token.
-     * @param decimals The decimals of the stablecoin.
      */
-    function addSupportedToken(address tokenAddress, uint8 decimals) public onlyOwner {
+    function addSupportedToken(address tokenAddress) public onlyOwner {
         require(tokenAddress != address(0), "Teller: Invalid token address");
         require(stablecoinDecimals[tokenAddress] == 0, "Teller: Token already supported");
+
+        uint8 decimals = IERC20Metadata(tokenAddress).decimals();
         require(decimals > 0, "Teller: Invalid decimals");
 
         stablecoinDecimals[tokenAddress] = decimals;
@@ -151,14 +154,14 @@ contract Teller is Ownable2StepUpgradeable {
      * @param newFeeRate The new fee rate. Max 1e17 (representing 10%).
      */
     function setFeeRate(uint256 newFeeRate) public onlyOwner {
-        require(newFeeRate <= 1e17, "Teller: Invalid fee rate");
+        require(newFeeRate <= 1e17, "Teller: Fee rate too high (max 10%)");
         uint256 oldFeeRate = feeRate;
         feeRate = newFeeRate;
         emit FeeRateSet(oldFeeRate, newFeeRate);
     }
 
     /**
-     * @notice Deposits Satcoin or Stablecoins into this contract.
+     * @notice Deposits SatCoin or stablecoins into this contract.
      * @dev Used for liquidity management.
      * @param tokenAddress The address of the token to deposit.
      * @param amount The amount to deposit.
@@ -190,10 +193,11 @@ contract Teller is Ownable2StepUpgradeable {
     }
 
 
-    // --- View Functions ---
+    // =========================== View functions ==========================
 
     /**
      * @notice Fetches and normalizes the SatCoin price from the BTC/USD Chainlink feed.
+     *      It represents the price of 1 unit SatCoin in the 1 unit stablecoin, in 36 decimals.
      * @param decimals The decimals of the stablecoin to get the price against.
      * @return The SatCoin price with 18 decimals.
      */
@@ -212,11 +216,11 @@ contract Teller is Ownable2StepUpgradeable {
 
     /**
      * @notice Calculates the slippage on the SatCoin amount.
-     * @param satcoinAmount The trade size in SatCoin.
+     * @param satCoinAmount The trade size in SatCoin.
      * @return The slippage in 18 decimals. 1e15 represents 0.1% slippage.
      */
-    function calculateSlippage(uint256 satcoinAmount) public view returns (uint256) {
-        return satcoinAmount.wMulDown(slippageCoefficient);
+    function calculateSlippage(uint256 satCoinAmount) public view returns (uint256) {
+        return satCoinAmount.wMulDown(slippageCoefficient);
     }
 
     /**
@@ -233,7 +237,7 @@ contract Teller is Ownable2StepUpgradeable {
         // 1. Check conditions and calculate the ideal SatCoin output amount.
         require(stablecoinDecimals[tokenIn] > 0, "Teller: Token not supported");
         uint256 price = getPrice(stablecoinDecimals[tokenIn]);
-        uint256 idealSatCoinOut = amountIn.wDivDown(price);
+        uint256 idealSatCoinOut = (amountIn * WAD).wDivDown(price);
         require(idealSatCoinOut <= MAX_TRADE_SATCOIN_EQUIVALENT, "Teller: Trade size exceeds limit");
 
         // 2. Calculate the amount after applying slippage.
@@ -246,7 +250,7 @@ contract Teller is Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice Previews the amount of stablecoin that received for selling an exact amount of SatCoin.
+     * @notice Previews the amount of stablecoin to be received for selling an exact amount of SatCoin.
      * @param amountIn The amount of SatCoin being paid.
      * @param tokenOut The address of the stablecoin to be received.
      * @return stablecoinAmountOut The expected amount of stablecoin to be received after fees.
@@ -260,11 +264,11 @@ contract Teller is Ownable2StepUpgradeable {
         require(amountIn <= MAX_TRADE_SATCOIN_EQUIVALENT, "Teller: Trade size exceeds limit");
         require(stablecoinDecimals[tokenOut] > 0, "Teller: Token not supported");
         uint256 price = getPrice(stablecoinDecimals[tokenOut]);
-        uint256 idealStablecoinOut = amountIn.wMulDown(price);
+        uint256 idealStableCoinOut = amountIn.wMulDown(price) / WAD;
 
         // 2. Calculate the amount after applying slippage.
         uint256 slippage = calculateSlippage(amountIn);
-        uint256 stablecoinOutAfterSlippage = idealStablecoinOut.wMulDown(WAD - slippage);
+        uint256 stablecoinOutAfterSlippage = idealStableCoinOut.wMulDown(WAD - slippage);
 
         // 3. Calculate the fee and the final output amount.
         feeAmount = stablecoinOutAfterSlippage.wMulDown(feeRate);
@@ -276,7 +280,7 @@ contract Teller is Ownable2StepUpgradeable {
      * @param amountOut The exact amount of SatCoin to be received after fees.
      * @param tokenIn The address of the stablecoin to be paid.
      * @return stablecoinAmountIn The expected amount of stablecoin required to be paid.
-     * @return feeAmount The fee that will be charged  denominated in SatCoin.
+     * @return feeAmount The fee that will be charged, denominated in SatCoin.
      */
     function previewBuyExactOut(
         uint256 amountOut, 
@@ -284,20 +288,20 @@ contract Teller is Ownable2StepUpgradeable {
     ) public view returns (uint256 stablecoinAmountIn, uint256 feeAmount) {
         // 1. Reverse calculate the amount before the fee is applied (rounding up).
         require(stablecoinDecimals[tokenIn] > 0, "Teller: Token not supported");
-        uint256 satcoinAmountBeforeFee = amountOut.wDivUp(WAD - feeRate);
-        feeAmount = satcoinAmountBeforeFee - amountOut;
+        uint256 satCoinAmountBeforeFee = amountOut.wDivUp(WAD - feeRate);
+        feeAmount = satCoinAmountBeforeFee - amountOut;
         require(
-            satcoinAmountBeforeFee <= MAX_TRADE_SATCOIN_EQUIVALENT, 
+            satCoinAmountBeforeFee <= MAX_TRADE_SATCOIN_EQUIVALENT, 
             "Teller: Trade size exceeds limit"
         );
 
         // 2. Reverse calculate the ideal amount before slippage (rounding up).
-        uint256 slippage = calculateSlippage(satcoinAmountBeforeFee);
-        uint256 idealSatCoinAmount = satcoinAmountBeforeFee.wDivUp(WAD - slippage);
+        uint256 slippage = calculateSlippage(satCoinAmountBeforeFee);
+        uint256 idealSatCoinAmount = satCoinAmountBeforeFee.wDivUp(WAD - slippage);
 
         // 3. Calculate the final stablecoin input amount (rounding up).
         uint256 price = getPrice(stablecoinDecimals[tokenIn]);
-        stablecoinAmountIn = idealSatCoinAmount.wMulUp(price);
+        stablecoinAmountIn = idealSatCoinAmount.wMulUp(price) / WAD;
     }
 
     /**
@@ -326,12 +330,12 @@ contract Teller is Ownable2StepUpgradeable {
         uint256 slippage = calculateSlippage(estimatedSatCoinIn);
 
         // 3. Reverse calculate the ideal stablecoin amount before slippage (rounding up).
-        uint256 idealStablecoinAmount = stablecoinAmountBeforeFee.wDivUp(WAD - slippage);
-        satCoinAmountIn = idealStablecoinAmount.wDivUp(price);
+        uint256 idealStableCoinAmount = stablecoinAmountBeforeFee.wDivUp(WAD - slippage);
+        satCoinAmountIn = (idealStableCoinAmount * WAD).wDivUp(price);
     }
 
 
-    // --- Public User Functions ---
+    // ========================== Write functions ==========================
 
     /**
      * @notice Swaps an exact amount of a supported stablecoin for SatCoin.
