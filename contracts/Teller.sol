@@ -15,13 +15,42 @@ using SafeERC20 for IERC20;
 using MathLib for uint256;
 
 
+interface ITeller {
+    function stablecoinDecimals(address token) external view returns (uint8);
+
+    function buyExactIn(
+        uint256 amountIn, 
+        address tokenIn, 
+        uint256 minAmountOut, 
+        address recipient
+    ) external returns (uint256 satCoinAmountOut, uint256 feeAmount);
+
+    function buyExactOut(
+        uint256 amountOut, 
+        address tokenIn, 
+        uint256 maxAmountIn, 
+        address recipient
+    ) external returns (uint256 stablecoinAmountIn, uint256 feeAmount);
+
+    function previewBuyExactIn(
+        uint256 amountIn, 
+        address tokenIn
+    ) external view returns (uint256 satCoinAmountOut, uint256 feeAmount);
+
+    function previewBuyExactOut(
+        uint256 amountOut, 
+        address tokenIn
+    ) external view returns (uint256 stablecoinAmountIn, uint256 feeAmount);
+}
+
+
 /**
  * @title Teller
  * @notice This contract facilitates the buying and selling of SatCoin for supported stablecoins.
  * @dev It uses a tiered dynamic slippage model based on the trade size (in BTC equivalent)
  * and fetches the base price from Chainlink price feeds.
  */
-contract Teller is Ownable2StepUpgradeable {
+contract Teller is ITeller, Ownable2StepUpgradeable {
 
     // ============================= Constants =============================
 
