@@ -100,6 +100,14 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
         _;
     }
 
+    modifier onlyOperatorOrSelf() {
+        require(
+            _msgSender() == operator || _msgSender() == address(this),
+            "DCA: Not operator or self"
+        );
+        _;
+    }
+
 
     // ====================== Write functions - admin ======================
 
@@ -199,7 +207,7 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
         emit DCACanceled(_msgSender(), planId, plan);
     }
 
-    function executeBatchDCA(uint256[] calldata planIds) public nonReentrant onlyOperator {
+    function executeBatchDCA(uint256[] calldata planIds) public onlyOperator {
         // Avoid gas limit exceeded
         require(planIds.length <= MAX_EXECUTIONS_PER_BATCH, "DCA: Exceeds max executions per batch");
 
@@ -225,7 +233,7 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
 
     // ========================= Internal functions ========================
 
-    function executeSingleDCA(uint256 planId) public nonReentrant onlyOperator {
+    function executeSingleDCA(uint256 planId) public nonReentrant onlyOperatorOrSelf {
         DCAPlan storage plan = dcaPlans[planId];
         require(plan.isActive && plan.user != address(0), "DCA: Plan not executable");
 
