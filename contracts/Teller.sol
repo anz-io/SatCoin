@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 
@@ -342,24 +341,27 @@ contract Teller is Ownable2StepUpgradeable {
      * @param amountIn The exact amount of stablecoin being paid.
      * @param tokenIn The address of the stablecoin being paid.
      * @param minAmountOut The minimum amount of SatCoin the user is willing to receive.
+     * @param recipient The address to receive assets. If address(0), defaults to msg.sender.
      * @return satCoinAmountOut The amount of SatCoin received after fees.
      * @return feeAmount The fee charged for the trade, denominated in SatCoin.
      */
     function buyExactIn(
         uint256 amountIn,
         address tokenIn,
-        uint256 minAmountOut
+        uint256 minAmountOut,
+        address recipient
     ) public returns (uint256 satCoinAmountOut, uint256 feeAmount) {
         // Preview the output amount
         (satCoinAmountOut, feeAmount) = previewBuyExactIn(amountIn, tokenIn);
         require(satCoinAmountOut >= minAmountOut, "Teller: Insufficient output amount");
 
         // Transfer tokens
+        address finalRecipient = recipient == address(0) ? _msgSender() : recipient;
         IERC20(tokenIn).safeTransferFrom(_msgSender(), address(this), amountIn);
-        satCoin.safeTransfer(_msgSender(), satCoinAmountOut);
+        satCoin.safeTransfer(finalRecipient, satCoinAmountOut);
 
         // Event
-        emit Bought(_msgSender(), tokenIn, amountIn, satCoinAmountOut, feeAmount);
+        emit Bought(finalRecipient, tokenIn, amountIn, satCoinAmountOut, feeAmount);
     }
 
     /**
@@ -367,24 +369,27 @@ contract Teller is Ownable2StepUpgradeable {
      * @param amountIn The exact amount of SatCoin being paid.
      * @param tokenOut The address of the stablecoin to receive.
      * @param minAmountOut The minimum amount of stablecoin the user is willing to receive.
+     * @param recipient The address to receive assets. If address(0), defaults to msg.sender.
      * @return stablecoinAmountOut The amount of stablecoin received after fees.
      * @return feeAmount The fee charged for the trade, denominated in the stablecoin.
      */
     function sellExactIn(
         uint256 amountIn,
         address tokenOut,
-        uint256 minAmountOut
+        uint256 minAmountOut,
+        address recipient
     ) public returns (uint256 stablecoinAmountOut, uint256 feeAmount) {
         // Preview the output amount
         (stablecoinAmountOut, feeAmount) = previewSellExactIn(amountIn, tokenOut);
         require(stablecoinAmountOut >= minAmountOut, "Teller: Insufficient output amount");
 
         // Transfer tokens
+        address finalRecipient = recipient == address(0) ? _msgSender() : recipient;
         satCoin.safeTransferFrom(_msgSender(), address(this), amountIn);
-        IERC20(tokenOut).safeTransfer(_msgSender(), stablecoinAmountOut);
+        IERC20(tokenOut).safeTransfer(finalRecipient, stablecoinAmountOut);
 
         // Event
-        emit Sold(_msgSender(), tokenOut, amountIn, stablecoinAmountOut, feeAmount);
+        emit Sold(finalRecipient, tokenOut, amountIn, stablecoinAmountOut, feeAmount);
     }
 
     /**
@@ -392,24 +397,27 @@ contract Teller is Ownable2StepUpgradeable {
      * @param amountOut The exact amount of SatCoin to receive.
      * @param tokenIn The address of the stablecoin being paid.
      * @param maxAmountIn The maximum amount of stablecoin the user is willing to pay.
+     * @param recipient The address to receive assets. If address(0), defaults to msg.sender.
      * @return stablecoinAmountIn The amount of stablecoin paid.
      * @return feeAmount The fee charged for the trade, denominated in SatCoin.
      */
     function buyExactOut(
         uint256 amountOut,
         address tokenIn,
-        uint256 maxAmountIn
+        uint256 maxAmountIn,
+        address recipient
     ) public returns (uint256 stablecoinAmountIn, uint256 feeAmount) {
         // Preview the input amount
         (stablecoinAmountIn, feeAmount) = previewBuyExactOut(amountOut, tokenIn);
         require(stablecoinAmountIn <= maxAmountIn, "Teller: Excessive input amount");
 
         // Transfer tokens
+        address finalRecipient = recipient == address(0) ? _msgSender() : recipient;
         IERC20(tokenIn).safeTransferFrom(_msgSender(), address(this), stablecoinAmountIn);
-        satCoin.safeTransfer(_msgSender(), amountOut);
+        satCoin.safeTransfer(finalRecipient, amountOut);
 
         // Event
-        emit Bought(_msgSender(), tokenIn, stablecoinAmountIn, amountOut, feeAmount);
+        emit Bought(finalRecipient, tokenIn, stablecoinAmountIn, amountOut, feeAmount);
     }
 
     /**
@@ -417,24 +425,27 @@ contract Teller is Ownable2StepUpgradeable {
      * @param amountOut The exact amount of stablecoin to receive.
      * @param tokenOut The address of the stablecoin to receive.
      * @param maxAmountIn The maximum amount of SatCoin the user is willing to pay.
+     * @param recipient The address to receive assets. If address(0), defaults to msg.sender.
      * @return satCoinAmountIn The amount of SatCoin paid.
      * @return feeAmount The fee charged for the trade, denominated in the stablecoin.
      */
     function sellExactOut(
         uint256 amountOut,
         address tokenOut,
-        uint256 maxAmountIn
+        uint256 maxAmountIn,
+        address recipient
     ) public returns (uint256 satCoinAmountIn, uint256 feeAmount) {
         // Preview the input amount
         (satCoinAmountIn, feeAmount) = previewSellExactOut(amountOut, tokenOut);
         require(satCoinAmountIn <= maxAmountIn, "Teller: Excessive input amount");
 
         // Transfer tokens
+        address finalRecipient = recipient == address(0) ? _msgSender() : recipient;
         satCoin.safeTransferFrom(_msgSender(), address(this), satCoinAmountIn);
-        IERC20(tokenOut).safeTransfer(_msgSender(), amountOut);
+        IERC20(tokenOut).safeTransfer(finalRecipient, amountOut);
 
         // Event
-        emit Sold(_msgSender(), tokenOut, satCoinAmountIn, amountOut, feeAmount);
+        emit Sold(finalRecipient, tokenOut, satCoinAmountIn, amountOut, feeAmount);
     }
 
 }
