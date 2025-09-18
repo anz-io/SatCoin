@@ -21,35 +21,55 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
 
     // ============================= Constants =============================
 
+    /// @notice The max number of active DCA plans a single user can have.
     uint256 public constant MAX_PLANS_PER_USER = 20;
 
+    /// @notice The max number of DCA plans that can be executed in a single batch txs.
     uint256 public constant MAX_EXECUTIONS_PER_BATCH = 100;
 
+    /// @notice The Teller contract used for executing token swaps.
     ITeller public teller;
 
 
     // ============================== Storage ==============================
 
+    /// @notice The address authorized to execute batch DCA plans.
     address public operator;
 
+    /// @notice A counter for generating unique DCA plan IDs. Starts at 1.
     uint256 public nextPlanId;
 
-    enum DCAType { EXACT_IN, EXACT_OUT }
-    enum DCAFrequency { WEEKLY, MONTHLY }
-
-    struct DCAPlan {
-        address user;
-        address tokenIn;
-        DCAType dcaType;
-        DCAFrequency dcaFrequency;
-        uint256 amount;         // stablecoin amount for `EXACT_IN`, SatCoin amount for `EXACT_OUT`
-        uint256 maxAmountIn;    // max amount of stablecoin, only for `EXACT_OUT` mode
-        uint256 lastExecuted;
-        bool isActive;
+    /// @notice The type of DCA plan.
+    enum DCAType { 
+        EXACT_IN,   // Spend a fixed amount of stablecoin for a variable amount of SatCoin.
+        EXACT_OUT   // Spend a variable amount of stablecoin for a fixed amount of SatCoin.
+    }
+    
+    /// @notice The execution frequency of the DCA plan.
+    enum DCAFrequency { 
+        WEEKLY, 
+        MONTHLY 
     }
 
+    /// @notice Represents a user's DCA plan.
+    struct DCAPlan {
+        address user;           // The owner of the plan.
+        address tokenIn;        // The stablecoin used for purchase.
+        DCAType dcaType;        // The type of the DCA plan (EXACT_IN or EXACT_OUT).
+        DCAFrequency dcaFrequency; // The execution frequency.
+        uint256 amount;         // stablecoin amount for `EXACT_IN`, SatCoin amount for `EXACT_OUT`.
+        uint256 maxAmountIn;    // max amount of stablecoin to spend, only for `EXACT_OUT` mode.
+        uint256 lastExecuted;   // Timestamp of the last successful execution.
+        bool isActive;          // Flag indicating if the plan is active.
+    }
+
+    /// @notice Mapping from a plan ID to its corresponding DCAPlan struct.
     mapping(uint256 => DCAPlan) public dcaPlans;
+
+    /// @notice Mapping from a user's address to an array of their active plan IDs.
     mapping(address => uint256[]) public userPlanIds;
+
+    /// @notice Mapping from a plan ID to its index in the user's `userPlanIds` array for O(1) removal.
     mapping(uint256 => uint256) public planIdToIndex;
 
 
@@ -72,7 +92,7 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
 
     /**
      * @notice Initializes the contract.
-     * @dev This function replaces the constructor and can only be called once.
+     * @dev Can only be called once.
      * @param _tellerAddress The address of the Teller contract.
      * @param _initialOperator The initial operator address.
      * @param _initialOwner The initial owner of the contract.
@@ -95,11 +115,13 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
         nextPlanId = 1;
     }
 
+    /// @dev Throws if the caller is not the operator.
     modifier onlyOperator() {
         require(_msgSender() == operator, "DCA: Not operator");
         _;
     }
 
+    /// @dev Throws if the caller is not the operator or the contract itself.
     modifier onlyOperatorOrSelf() {
         require(
             _msgSender() == operator || _msgSender() == address(this),
@@ -111,6 +133,11 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
 
     // ====================== Write functions - admin ======================
 
+    /**
+     * @notice Sets the operator address.
+     * @dev Can only be called by the contract owner.
+     * @param _newOperator The address of the new operator.
+     */
     function setOperator(address _newOperator) public onlyOwner {
         require(_newOperator != address(0), "DCA: Invalid operator address");
         operator = _newOperator;
@@ -120,10 +147,19 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
 
     // =========================== View functions ==========================
 
+    /**
+     * @notice Returns the total number of DCA plans ever created.
+     * @return The total plan count.
+     */
     function plansLength() public view returns (uint256) {
         return nextPlanId - 1;
     }
 
+    /**
+     * @notice Retrieves all active plan IDs for a given user.
+     * @param user The address of the user.
+     * @return An array of plan IDs.
+     */
     function getPlansByUser(address user) public view returns (uint256[] memory) {
         return userPlanIds[user];
     }
@@ -131,6 +167,14 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
 
     // ========================== Write functions ==========================
 
+    /**
+     * @notice Creates a new DCA plan for the caller.
+     * @param tokenIn The stablecoin to use for purchase.
+     * @param dcaType The type of DCA (0 for EXACT_IN, 1 for EXACT_OUT).
+     * @param dcaFrequency The frequency (0 for WEEKLY, 1 for MONTHLY).
+     * @param amount The amount for the plan (stablecoin for EXACT_IN, SatCoin for EXACT_OUT).
+     * @param maxAmountIn The max stablecoin to spend (required for EXACT_OUT).
+     */
     function createDCA(
         address tokenIn,
         DCAType dcaType,
@@ -167,6 +211,13 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
         emit DCACreated(_msgSender(), planId, dcaPlans[planId]);
     }
 
+    /**
+     * @notice Updates the amount and maxAmountIn for an existing DCA plan.
+     * @dev The caller must be the plan owner.
+     * @param planId The ID of the plan to update.
+     * @param amount The new amount for the plan.
+     * @param maxAmountIn The new max stablecoin to spend (for EXACT_OUT).
+     */
     function updateDCA(uint256 planId, uint256 amount, uint256 maxAmountIn) public nonReentrant {
         // Check conditions
         DCAPlan storage plan = dcaPlans[planId];
@@ -185,6 +236,11 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
         emit DCAUpdated(_msgSender(), planId, plan);
     }
 
+    /**
+     * @notice Cancels an active DCA plan.
+     * @dev This deactivates the plan and removes it from the user's active plan list.
+     * @param planId The ID of the plan to cancel.
+     */
     function cancelDCA(uint256 planId) public nonReentrant {
         // Check conditions
         DCAPlan storage plan = dcaPlans[planId];
@@ -207,6 +263,11 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
         emit DCACanceled(_msgSender(), planId, plan);
     }
 
+    /**
+     * @notice Executes a batch of DCA plans.
+     * @dev Can only be called by the operator. Skips inactive plans and catches individual failures.
+     * @param planIds An array of plan IDs to execute.
+     */
     function executeBatchDCA(uint256[] calldata planIds) public onlyOperator {
         // Avoid gas limit exceeded
         require(planIds.length <= MAX_EXECUTIONS_PER_BATCH, "DCA: Exceeds max executions per batch");
@@ -216,9 +277,9 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
             uint256 planId = planIds[i];
             DCAPlan storage plan = dcaPlans[planId];
 
-            // If illegal plan, skip but not revert
+            // If illegal plan, skip but do not revert the entire batch
             if (!plan.isActive || plan.user == address(0)) {
-                emit DCAExecuted(planId, false, 0, 0, "Inactive or invalid plan");
+                emit DCAExecuted(planId, false, 0, 0, bytes("Inactive or invalid plan"));
                 continue;
             }
             plan.lastExecuted = block.timestamp;
@@ -233,6 +294,12 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
 
     // ========================= Internal functions ========================
 
+    /**
+     * @notice Executes a single DCA plan's logic.
+     * @dev This is called externally by `executeBatchDCA` to isolate failures.
+     * Requires caller to be the operator or the contract itself.
+     * @param planId The ID of the plan to execute.
+     */
     function executeSingleDCA(uint256 planId) public nonReentrant onlyOperatorOrSelf {
         DCAPlan storage plan = dcaPlans[planId];
         require(plan.isActive && plan.user != address(0), "DCA: Plan not executable");
@@ -244,6 +311,12 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
         }
     }
 
+    /**
+     * @notice Internal logic for executing an EXACT_IN plan.
+     * @dev Pulls a fixed amount of stablecoin from the user and buys SatCoin.
+     * @param planId The ID of the plan.
+     * @param plan The plan's storage pointer.
+     */
     function _executeBuyExactIn(uint256 planId, DCAPlan storage plan) internal {
         // Fetch plan information
         uint256 amountIn = plan.amount;
@@ -260,6 +333,12 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
         emit DCAExecuted(planId, true, amountIn, satCoinAmountOut, "");
     }
 
+    /**
+     * @notice Internal logic for executing an EXACT_OUT plan.
+     * @dev Buys a fixed amount of SatCoin, pulling the required amount of stablecoin from the user.
+     * @param planId The ID of the plan.
+     * @param plan The plan's storage pointer.
+     */
     function _executeBuyExactOut(uint256 planId, DCAPlan storage plan) internal {
         // Fetch plan information
         uint256 amountOut = plan.amount;
