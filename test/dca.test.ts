@@ -3,7 +3,7 @@ import { ethers, upgrades } from "hardhat"
 import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox/network-helpers"
 import { deployContract, deployUpgradeableContract } from "../scripts/utils"
 import { DCA, MockOracle, MockUSDC, SatCoin, Teller } from "../typechain-types"
-import { parseUnits, ZeroAddress } from "ethers"
+import { hexlify, parseUnits, toUtf8Bytes, ZeroAddress } from "ethers"
 
 describe("DCA", function () {
 
@@ -42,7 +42,7 @@ describe("DCA", function () {
     const tellerAddress = await teller.getAddress();
     const dcaAddress = await dca.getAddress();
     const mockusdcAddress = await mockusdc.getAddress();
-    const satcoinAddress = await satcoin.getAddress();
+    await dca.connect(admin).setOperator(operator.address)
 
     // Configure Teller: Price, supported token, and liquidity
     await oracle.setPrice(parseUnits("75000", 8)); // 1 BTC = $75,000
@@ -106,6 +106,7 @@ describe("DCA", function () {
     expect(await dca.getPlansByUser(user1.address)).to.have.lengthOf(5);
     expect(await dca.getPlansByUser(user2.address)).to.have.lengthOf(5);
     expect(await dca.nextPlanId()).to.equal(11);
+    expect(await dca.plansLength()).to.equal(10);
 
 
     // =================================================================
@@ -116,10 +117,20 @@ describe("DCA", function () {
     const newAmount = parseUnits("120", 6);
     await expect(dca.connect(user1).updateDCA(1, newAmount, 0))
       .to.emit(dca, "DCAUpdated")
-      .withArgs(user1.address, 1, [user1.address, mockusdcAddress, EXACT_IN, WEEKLY, newAmount, 0, 0, true]);
+      .withArgs(user1.address, 1, [
+        user1.address, mockusdcAddress, EXACT_IN, WEEKLY, newAmount, 0, 0, true,
+      ]);
 
     const plan1 = await dca.dcaPlans(1);
     expect(plan1.amount).to.equal(newAmount);
+
+    // User2 updates Plan 6
+    await expect(dca.connect(user2).updateDCA(6, parseUnits("25000", 18), parseUnits("25", 6)))
+      .to.emit(dca, "DCAUpdated")
+      .withArgs(user2.address, 6, [
+        user2.address, mockusdcAddress, EXACT_OUT, WEEKLY,
+        parseUnits("25000", 18), parseUnits("25", 6), 0, true,
+      ]);
 
     // User2 cancels Plan 4
     const plan4BeforeCancel = await dca.dcaPlans(4);
@@ -199,5 +210,72 @@ describe("DCA", function () {
     const canceledPlan4 = await dca.dcaPlans(4);
     expect(canceledPlan4.lastExecuted).to.equal(0);
   });
+
+
+  it("should handle failed executions correctly in a batch", async function () {
+    const {
+      mockusdc, admin, operator, user1, oracle, teller, dca, satcoin,
+    } = await loadFixture(deployContracts)
+
+    // =================================================================
+    // 1. SETUP
+    // =================================================================
+    const dcaAddress = await dca.getAddress();
+    const mockusdcAddress = await mockusdc.getAddress();
+    await dca.connect(admin).setOperator(operator.address);
+    await teller.connect(admin).addSupportedToken(mockusdcAddress);
+    await oracle.setPrice(parseUnits("75000", 8));
+    await satcoin.connect(admin).mint(await teller.getAddress(), parseUnits("1", 8 + 18));
+
+    // Mint just enough USDC for one plan, so the second one fails
+    await mockusdc.mint(user1.address, parseUnits("150", 6));
+    await mockusdc.connect(user1).approve(dcaAddress, ethers.MaxUint256);
+
+    // =================================================================
+    // 2. CREATE PLANS
+    // =================================================================
+    const EXACT_IN = 0n;
+    const WEEKLY = 0n;
+
+    // Plan 1: Valid and will succeed
+    await dca.connect(user1).createDCA(mockusdcAddress, EXACT_IN, WEEKLY, parseUnits("100", 6), 0);
+
+    // Plan 2: User1 doesn't have enough USDC for this one, so it will fail
+    await dca.connect(user1).createDCA(mockusdcAddress, EXACT_IN, WEEKLY, parseUnits("200", 6), 0);
+
+    // Plan 3: This plan will be canceled before execution
+    await dca.connect(user1).createDCA(mockusdcAddress, EXACT_IN, WEEKLY, parseUnits("50", 6), 0);
+    await dca.connect(user1).cancelDCA(3);
+
+    // =================================================================
+    // 3. EXECUTE AND VERIFY EVENTS
+    // =================================================================
+    const planIdsToExecute = [1, 2, 3]; // One success, one failure, one inactive
+    const tx = await dca.connect(operator).executeBatchDCA(planIdsToExecute);
+
+    // Verify Plan 3 (inactive plan) triggered "Inactive or invalid plan"
+    await expect(tx)
+      .to.emit(dca, "DCAExecuted")
+      .withArgs(3, false, 0, 0, hexlify(toUtf8Bytes("Inactive or invalid plan")));
+
+    // Verify Plan 2 (insufficient funds) in try/catch failed
+    await expect(tx)
+      .to.emit(dca, "DCAExecuted")
+      .withArgs(2, false, 0, 0, (reason: any) => {
+        // The exact revert reason from ERC20 might be complex, 
+        // so we just check that a reason exists.
+        return reason.length > 2; 
+      });
+
+    // Verify Plan 1 executed successfully
+    await expect(tx)
+      .to.emit(dca, "DCAExecuted")
+      .withArgs(1, true, parseUnits("100", 6), (amountOut: any) => amountOut > 0, "0x");
+
+    // Check Plan 3 status, ensure it was not executed
+    const plan3 = await dca.dcaPlans(3);
+    expect(plan3.lastExecuted).to.equal(0);
+  });
+
 
 })
