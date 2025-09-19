@@ -22,10 +22,7 @@ const config: HardhatUserConfig = {
     }
   },
   etherscan: {
-    apiKey: {
-      sepolia: process.env.API_ETHERSCAN!,
-      bsc: process.env.API_ETHERSCAN!,
-    }
+    apiKey: process.env.API_ETHERSCAN!,
   }
 };
 
