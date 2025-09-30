@@ -28,19 +28,28 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
     // Total number of tokens minted
     uint256 public totalSupply;
 
-    // Mapping for replay protection
-    mapping(bytes => bool) public signatureUsed;
-
     // Address of the backend signer authorized to permit mints
     address public signerAddress;
+
+    // Mapping for replay protection
+    mapping(bytes32 => bool) public minted;
 
     // Mapping from tokenId to its encoded attributes payload
     mapping(uint256 => bytes) public attributePayload;
 
+    // SatCoin NFT has different types, each type should be added only by admin
+    mapping(uint8 => string) public typeIdToTypeName;
+
+    // The same type of NFT has the same image url
+    mapping(uint8 => string) public typeIdToImageUrl;
+
+    // Each token has a type
+    mapping(uint256 => uint8) public tokenTypeId;
+
 
     // --- Events ---
 
-    event SignatureConsumed(bytes signature);
+    event TypeInfoSet(uint8 indexed typeId, string typeName, string imageUrl);
     event Minted(address indexed to, uint256 indexed tokenId);
 
 
@@ -121,6 +130,7 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
         bytes32 traitsDigest = hashTraits(traits);
         return string(abi.encodePacked(
             "SatCoinNFT Minting: chainId=", Strings.toString(block.chainid),
+            ", contract=", Strings.toHexString(address(this)),
             ", address=", Strings.toHexString(to),
             ", traits_digest=", traitsDigest
         ));
@@ -162,19 +172,17 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
     /**
      * @notice Mints a new NFT with a dynamic set of traits, authorized by a backend signature.
      * @param traits The array of traits that define this NFT's metadata.
-     * @param signature The EIP-712 signature from the backend `signerAddress`.
+     * @param signature The signature from the backend `signerAddress`.
      */
     function mint(
+        address to,
         Trait[] calldata traits,
         bytes calldata signature
     ) public {
-        // Check replay protection
-        require(!signatureUsed[signature], "SatCoinNFT: Signature already used");
-
         // Verify signature
-        address to = _msgSender();
         string memory message = constructMessage(to, traits);
         bytes32 messageHash = prefixedHash(message);
+        require(!minted[messageHash], "SatCoinNFT: Already minted");
         require(
             SignatureChecker.isValidSignatureNow(signerAddress, messageHash, signature), 
             "SatCoinNFT: Invalid signature"
@@ -182,13 +190,14 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
 
         // Update states
         uint256 newTokenId = totalSupply;
-        signatureUsed[signature] = true;
-        attributePayload[newTokenId] = abi.encode(traits);
-        _safeMint(to, newTokenId);
         totalSupply++;
+        minted[messageHash] = true;
+        attributePayload[newTokenId] = abi.encode(traits);
+
+        // Execute mint
+        _safeMint(to, newTokenId);
 
         // Event
-        emit SignatureConsumed(signature);
         emit Minted(to, newTokenId);
     }
 
@@ -202,6 +211,21 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
     function setSigner(address newSigner) public onlyOwner {
         require(newSigner != address(0), "Signer cannot be zero address");
         signerAddress = newSigner;
+    }
+
+    /**
+     * @notice Sets the name and image URL for a given type ID.
+     * @param typeId The numeric ID for the NFT type (e.g., 1).
+     * @param typeName The display name for the type (e.g., "Holders NFT").
+     * @param imageUrl The IPFS or gateway URL for the image.
+     */
+    function setTypeInfo(
+        uint8 typeId, 
+        string calldata typeName, 
+        string calldata imageUrl
+    ) public onlyOwner {
+        typeIdToImageUrl[typeId] = imageUrl;
+        typeIdToTypeName[typeId] = typeName;
     }
 
 }
