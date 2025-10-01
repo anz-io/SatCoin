@@ -13,6 +13,7 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
     // --- Data Structures ---
 
     using Strings for uint256;
+    using Strings for address;
 
     struct Trait {
         string key;
@@ -38,18 +39,18 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
     mapping(uint256 => bytes) public attributePayload;
 
     // SatCoin NFT has different types, each type should be added only by admin
-    mapping(uint8 => string) public typeIdToTypeName;
+    mapping(uint16 => string) public typeIdToTypeName;
 
     // The same type of NFT has the same image url
-    mapping(uint8 => string) public typeIdToImageUrl;
+    mapping(uint16 => string) public typeIdToImageUrl;
 
     // Each token has a type
-    mapping(uint256 => uint8) public tokenTypeId;
+    mapping(uint256 => uint16) public tokenTypeId;
 
 
     // --- Events ---
 
-    event TypeInfoSet(uint8 indexed typeId, string typeName, string imageUrl);
+    event TypeInfoSet(uint16 indexed typeId, string typeName, string imageUrl);
     event Minted(address indexed to, uint256 indexed tokenId);
 
 
@@ -68,9 +69,9 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
         address initialOwner,
         address initialSigner
     ) public initializer {
-        __ERC721_init(name, symbol);
         __Ownable2Step_init();
         __Ownable_init(initialOwner);
+        __ERC721_init(name, symbol);
 
         require(initialSigner != address(0), "Signer cannot be zero address");
         signerAddress = initialSigner;
@@ -126,14 +127,16 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function constructMessage(address to, Trait[] calldata traits) public view returns (string memory) {
+    function constructMessage(address to, uint16 typeId, Trait[] calldata traits) public view returns (string memory) {
         bytes32 traitsDigest = hashTraits(traits);
-        return string(abi.encodePacked(
-            "SatCoinNFT Minting: chainId=", Strings.toString(block.chainid),
-            ", contract=", Strings.toHexString(address(this)),
-            ", address=", Strings.toHexString(to),
-            ", traits_digest=", traitsDigest
+        string memory message = string(abi.encodePacked(
+            "SatCoinNFT Minting: chainId=", block.chainid.toString(),
+            ", typeId=", uint256(typeId).toString(),
+            ", contract=", address(this).toHexString(),
+            ", address=", to.toHexString(),
+            ", traits_digest=", uint256(traitsDigest).toHexString()
         ));
+        return message;
     }
 
 
@@ -147,16 +150,35 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
         bytes memory payload = attributePayload[tokenId];
         require(payload.length > 0, "SatCoinNFT: Not minted");
 
-        // Build attributes JSON
+        // Decode traits
         Trait[] memory traits = abi.decode(payload, (Trait[]));
-        string memory attributesJson = _buildAttributesJson(traits);
+        string memory baseAttributesJson = _buildAttributesJson(traits);
 
+        // Load type info
+        uint16 typeId = tokenTypeId[tokenId];
+        string memory typeName = typeIdToTypeName[typeId];
+        string memory imageUrl = typeIdToImageUrl[typeId];
+        string memory typeAttributeJson = _formatTrait(Trait({
+            key: "NFT Type", 
+            value: typeName, 
+            displayType: ""
+        }));
+
+        // Concat the traits
+        string memory finalAttributesJson;
+        if (bytes(baseAttributesJson).length > 0) {
+            finalAttributesJson = string(abi.encodePacked(typeAttributeJson, ",", baseAttributesJson));
+        } else {
+            finalAttributesJson = typeAttributeJson;
+        }
+
+        // Build the final JSON
         string memory json = string(
             abi.encodePacked(
                 '{"name": "', name(), ' #', tokenId.toString(), '",',
                 '"description": "An NFT collection for the SatCoin community.",',
-                '"image": "ipfs://your_image_cid_or_gateway_url_here",',
-                '"attributes": [', attributesJson, ']}'
+                '"image": "', imageUrl, '",',
+                '"attributes": [', finalAttributesJson, ']}'
             )
         );
 
@@ -176,11 +198,13 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
      */
     function mint(
         address to,
+        uint16 typeId,
         Trait[] calldata traits,
         bytes calldata signature
     ) public {
         // Verify signature
-        string memory message = constructMessage(to, traits);
+        require(bytes(typeIdToTypeName[typeId]).length > 0, "SatCoinNFT: Invalid typeId");
+        string memory message = constructMessage(to, typeId, traits);
         bytes32 messageHash = prefixedHash(message);
         require(!minted[messageHash], "SatCoinNFT: Already minted");
         require(
@@ -193,6 +217,7 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
         totalSupply++;
         minted[messageHash] = true;
         attributePayload[newTokenId] = abi.encode(traits);
+        tokenTypeId[newTokenId] = typeId;
 
         // Execute mint
         _safeMint(to, newTokenId);
@@ -220,12 +245,13 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
      * @param imageUrl The IPFS or gateway URL for the image.
      */
     function setTypeInfo(
-        uint8 typeId, 
+        uint16 typeId, 
         string calldata typeName, 
         string calldata imageUrl
     ) public onlyOwner {
         typeIdToImageUrl[typeId] = imageUrl;
         typeIdToTypeName[typeId] = typeName;
+        emit TypeInfoSet(typeId, typeName, imageUrl);
     }
 
 }
