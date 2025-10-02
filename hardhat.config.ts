@@ -24,7 +24,13 @@ const config: HardhatUserConfig = {
       accounts: [
         process.env.PRIVATE_KEY_ADMIN!,
       ]
-    }
+    },
+    polygon: {
+      url: process.env.RPC_POL,
+      accounts: [
+        process.env.PRIVATE_KEY_ADMIN!,
+      ]
+    },
   },
   etherscan: {
     apiKey: process.env.API_ETHERSCAN!,
