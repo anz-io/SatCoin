@@ -5,11 +5,12 @@ import { ethers } from "hardhat";
 async function main() {
   const [admin] = await ethers.getSigners()
   
-  await deployUpgradeableContract("ProofOfReserve", [], true)
-  await deployUpgradeableContract("SatCoin", [], true)
-  await deployUpgradeableContract("SatCoinNFT", [
-    "SatCoin NFT", "SatCoin NFT", admin.address, admin.address,
+  // await deployUpgradeableContract("ProofOfReserve", [], true)
+  // await deployUpgradeableContract("SatCoin", [], true)
+  await deployUpgradeableContract("SatCoinNFTTest", [
+    "SatCoin NFT - Test 2", "SatCoin NFT - Test 2", admin.address, admin.address,
   ], true)
+
 }
 
 main()

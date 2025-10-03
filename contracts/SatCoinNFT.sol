@@ -22,7 +22,11 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
     }
 
     string public constant ETHEREUM_SIGN_PREFIX = "\x19Ethereum Signed Message:\n";
-    
+
+    bytes32 public constant KECCAK256_NUMBER = keccak256(bytes("number"));
+    bytes32 public constant KECCAK256_BOOST_NUMBER = keccak256(bytes("boost_number"));
+    bytes32 public constant KECCAK256_BOOST_PERCENTAGE = keccak256(bytes("boost_percentage"));
+
 
     // --- State Variables ---
 
@@ -92,19 +96,32 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
     }
 
     function _formatTrait(Trait memory trait) internal pure returns (string memory) {
-        string memory valuePart = string(abi.encodePacked(
-            '{"trait_type":"', trait.key,
-            '","value":"', trait.value, '"'
+        // Start building the JSON with the trait_type key
+        string memory json = string(abi.encodePacked(
+            '{"trait_type":"', trait.key, '",'
         ));
 
+        // Check if the display_type is "number"
+        bytes32 displayTypeHash = keccak256(bytes(trait.displayType));
+        if (
+            displayTypeHash == KECCAK256_NUMBER ||
+            displayTypeHash == KECCAK256_BOOST_NUMBER ||
+            displayTypeHash == KECCAK256_BOOST_PERCENTAGE
+        ) {
+            json = string(abi.encodePacked(json, '"value":', trait.value));
+        } else {
+            json = string(abi.encodePacked(json,'"value":"', trait.value, '"'));
+        }
+
+        // Add the display_type key if it exists
         if (bytes(trait.displayType).length > 0) {
-            valuePart = string(abi.encodePacked(
-                valuePart,
-                ',"display_type":"', trait.displayType,'"'
+            json = string(abi.encodePacked(
+                json, ',"display_type":"', trait.displayType, '"'
             ));
         }
 
-        return string(abi.encodePacked(valuePart, "}"));
+        // Add the closing brace
+        return string(abi.encodePacked(json, "}"));
     }
 
 
