@@ -214,7 +214,7 @@ describe("SatCoinNFT", function () {
       (t: any) => t.trait_type === "Level"
     );
     expect(levelTrait).to.not.be.undefined;
-    expect(levelTrait.value).to.equal("10");
+    expect(levelTrait.value).to.equal(10n);
     expect(levelTrait.display_type).to.equal("number");
   });
 
