@@ -1,6 +1,8 @@
 // npx hardhat console --network polygon
 
 require("dotenv").config()
+let [admin] = await ethers.getSigners()
+let wei = 1000000000n
 
 
 /* =============== Fee data & Tx replacement=============== */
@@ -15,7 +17,13 @@ await xxx.xxxx(xxxxxx, {
 /* ======================================================== */
 
 
-let [admin] = await ethers.getSigners()
+/* =================== Deploy & Upgrade =================== */
+let contractFactory = await ethers.getContractFactory("SatCoinNFTTest")
+let contract = await contractFactory.deploy()
+let proxyAdmin = await ethers.getContractFactory("ProxyAdmin", "0xd3ebcc1bb208303f824ceed07377ec94851c29ce")
+/* ======================================================== */
+
+
 // let nft = await ethers.getContractAt("SatCoinNFT", process.env.POL_NFT)
 let nft = await ethers.getContractAt("SatCoinNFTTest", process.env.POL_NFT)
 // await nft.updateAllTokenURIs()
@@ -37,21 +45,21 @@ await nft.setTypeInfo(2, "DCA NFT", url2)
 
 let typeId, traits, message, signature
 
-typeId = 1
-traits = [
-  { key: "Amount (Sats)", value: "1000", displayType: "number" },
-  { key: "Duration (Days)", value: "600", displayType: "number" },   // 500 days
-]
+// typeId = 1
+// traits = [
+//   { key: "Amount (Sats)", value: "1000", displayType: "number" },
+//   { key: "Duration (Days)", value: "600", displayType: "number" },   // 500 days
+// ]
 // traits = [
 //   { key: "Amount", value: "4000.00", displayType: "" },
 //   { key: "Duration (Days)", value: "200", displayType: "" },   // 200 days
 // ]
 
-// typeId = 2
-// traits = [
-//   { key: "Count", value: "4", displayType: "" },
-//   { key: "TotalAmount", value: "10000.000000", displayType: "" },
-// ]
+typeId = 2
+traits = [
+  { key: "Count", value: "5", displayType: "" },
+  { key: "TotalAmount", value: "20000", displayType: "boost_number" },
+]
 // traits = [
 //   { key: "Count", value: "6", displayType: "" },
 //   { key: "TotalAmount (Sats)", value: "5000", displayType: "" },
@@ -59,5 +67,6 @@ traits = [
 
 message = await nft.constructMessage(admin.address, typeId, traits)
 signature = await admin.signMessage(message)
-await nft.mint(admin.address, typeId, traits, signature)
+// await nft.mint(admin.address, typeId, traits, signature)
+await nft.mint(admin.address, typeId, traits, signature, { maxPriorityFeePerGas: 85n * wei, maxFeePerGas: 100n * wei })
 

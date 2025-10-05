@@ -12,6 +12,8 @@ This project provides a set of Solidity smart contracts to create an `ERC20` tok
 
 * **`ProofOfReserve.sol`**: A contract for on-chain transparency. It allows the project owner to record and manage Bitcoin reserve data, such as transaction hashes and balances, providing a public proof of the assets backing SatCoin.
 
+* **`SatCoinNFT.sol`**: A contract for a dynamic, on-chain generated NFT collection. It features a secure, signature-based minting process where a backend signer authorizes each mint, preventing unauthorized creation. The contract supports different NFT types with unique images and traits, which are dynamically assembled and returned as a Base64 encoded JSON in the tokenURI. 
+
 ### Libraries
 
 * **`MathLib.sol`**: A simple library for fixed-point arithmetic, used for precise calculations within the `Teller` contract.

@@ -8,9 +8,16 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 
 import "base64-sol/base64.sol";
 
+/**
+ * @title SatCoinNFT
+ * @author wyf-ACCEPT
+ * @notice An upgradeable ERC721 NFT contract with on-chain metadata generation
+ * and signature-based minting. It supports different NFT types and a flexible 
+ * attribute system compatible with OpenSea.
+ */
 contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
 
-    // --- Data Structures ---
+    // ============================= Constants =============================
 
     using Strings for uint256;
     using Strings for address;
@@ -28,44 +35,33 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
     bytes32 public constant KECCAK256_BOOST_PERCENTAGE = keccak256(bytes("boost_percentage"));
 
 
-    // --- State Variables ---
+    // ============================= Variables =============================
 
-    // Total number of tokens minted
     uint256 public totalSupply;
-
-    // Address of the backend signer authorized to permit mints
     address public signerAddress;
-
-    // Mapping for replay protection
     mapping(bytes32 => bool) public minted;
-
-    // Mapping from tokenId to its encoded attributes payload
     mapping(uint256 => bytes) public attributePayload;
-
-    // SatCoin NFT has different types, each type should be added only by admin
     mapping(uint16 => string) public typeIdToTypeName;
-
-    // The same type of NFT has the same image url
     mapping(uint16 => string) public typeIdToImageUrl;
-
-    // Each token has a type
     mapping(uint256 => uint16) public tokenTypeId;
 
 
-    // --- Events ---
+    // =============================== Events ==============================
 
     event TypeInfoSet(uint16 indexed typeId, string typeName, string imageUrl);
     event Minted(address indexed to, uint256 indexed tokenId);
 
 
-    // --- Initializer ---
+    // ======================= Modifier & Initializer ======================
 
     /**
-     * @notice Initializes the contract, setting up the name, symbol, owner, and signer.
+     * @notice Initializes the contract.
+     * @dev Sets up the name, symbol, owner, and the backend signer address.
+     * This function can only be called once on the implementation contract.
      * @param name The name of the NFT collection.
      * @param symbol The symbol of the NFT collection.
      * @param initialOwner The address that will initially own the contract.
-     * @param initialSigner The address of the backend service authorized to sign minting permits.
+     * @param initialSigner The address authorized to sign minting permits.
      */
     function initialize(
         string memory name,
@@ -82,8 +78,13 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
     }
 
 
-    // --- Internal Helper Functions ---
+    // ========================= Internal functions ========================
 
+    /**
+     * @dev Builds a JSON array string from a list of traits.
+     * @param traits The array of Trait structs.
+     * @return A string representing the JSON array of attributes.
+     */
     function _buildAttributesJson(Trait[] memory traits) internal pure returns (string memory) {
         string memory json;
         for (uint i = 0; i < traits.length; i++) {
@@ -95,11 +96,15 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
         return json;
     }
 
+    /**
+     * @dev Formats a single Trait struct into a JSON object string.
+     * @dev Handles numeric types by not wrapping their values in quotes.
+     * @param trait The Trait struct to format.
+     * @return A string representing the JSON object for the trait.
+     */
     function _formatTrait(Trait memory trait) internal pure returns (string memory) {
         // Start building the JSON with the trait_type key
-        string memory json = string(abi.encodePacked(
-            '{"trait_type":"', trait.key, '",'
-        ));
+        string memory json = string(abi.encodePacked('{"trait_type":"', trait.key, '",'));
 
         // Check if the display_type is "number"
         bytes32 displayTypeHash = keccak256(bytes(trait.displayType));
@@ -110,14 +115,12 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
         ) {
             json = string(abi.encodePacked(json, '"value":', trait.value));
         } else {
-            json = string(abi.encodePacked(json,'"value":"', trait.value, '"'));
+            json = string(abi.encodePacked(json, '"value":"', trait.value, '"'));
         }
 
         // Add the display_type key if it exists
         if (bytes(trait.displayType).length > 0) {
-            json = string(abi.encodePacked(
-                json, ',"display_type":"', trait.displayType, '"'
-            ));
+            json = string(abi.encodePacked(json, ',"display_type":"', trait.displayType, '"'));
         }
 
         // Add the closing brace
@@ -125,13 +128,23 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
     }
 
 
-    // --- Pure & View functions ---
+    // ======================= Pure & View functions =======================
 
+    /**
+     * @dev Hashes a message with the Ethereum signed message prefix.
+     * @param message The message to hash.
+     * @return The EIP-191 compliant hash.
+     */
     function prefixedHash(string memory message) internal pure returns (bytes32) {
         uint256 length = bytes(message).length;
         return keccak256(abi.encodePacked(ETHEREUM_SIGN_PREFIX, length.toString(), message));
     }
 
+    /**
+     * @dev Hashes an array of Trait structs to a single digest.
+     * @param traits The array of Trait structs.
+     * @return A bytes32 digest representing the traits.
+     */
     function hashTraits(Trait[] calldata traits) public pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](traits.length);
         for (uint i = 0; i < traits.length; i++) {
@@ -144,16 +157,26 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function constructMessage(address to, uint16 typeId, Trait[] calldata traits) public view returns (string memory) {
+    /**
+     * @dev Constructs the message string that needs to be signed for minting.
+     * @param to The address that will receive the NFT.
+     * @param typeId The numeric ID of the NFT type.
+     * @param traits The array of Trait structs for the NFT.
+     * @return The message string to be signed.
+     */
+    function constructMessage(
+        address to, 
+        uint16 typeId, 
+        Trait[] calldata traits
+    ) public view returns (string memory) {
         bytes32 traitsDigest = hashTraits(traits);
-        string memory message = string(abi.encodePacked(
+        return string(abi.encodePacked(
             "SatCoinNFT Minting: chainId=", block.chainid.toString(),
             ", typeId=", uint256(typeId).toString(),
             ", contract=", address(this).toHexString(),
             ", address=", to.toHexString(),
             ", traits_digest=", uint256(traitsDigest).toHexString()
         ));
-        return message;
     }
 
 
@@ -176,8 +199,8 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
         string memory typeName = typeIdToTypeName[typeId];
         string memory imageUrl = typeIdToImageUrl[typeId];
         string memory typeAttributeJson = _formatTrait(Trait({
-            key: "NFT Type", 
-            value: typeName, 
+            key: "NFT Type",
+            value: typeName,
             displayType: ""
         }));
 
@@ -206,12 +229,15 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
     }
 
 
-    // --- Public Minting Function ---
+    // ========================== Write functions ==========================
 
     /**
      * @notice Mints a new NFT with a dynamic set of traits, authorized by a backend signature.
-     * @param traits The array of traits that define this NFT's metadata.
-     * @param signature The signature from the backend `signerAddress`.
+     * @dev Verifies the signature, checks for replays, and then mints the token.
+     * @param to The address that will receive the NFT.
+     * @param typeId The numeric ID of the NFT type.
+     * @param traits The traits that define this NFT's metadata (excluding the "NFT Type" trait).
+     * @param signature The ignature from the backend `signerAddress`.
      */
     function mint(
         address to,
@@ -225,7 +251,7 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
         bytes32 messageHash = prefixedHash(message);
         require(!minted[messageHash], "SatCoinNFT: Already minted");
         require(
-            SignatureChecker.isValidSignatureNow(signerAddress, messageHash, signature), 
+            SignatureChecker.isValidSignatureNow(signerAddress, messageHash, signature),
             "SatCoinNFT: Invalid signature"
         );
 
@@ -244,10 +270,11 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
     }
 
 
-    // --- Admin Functions ---
+    // ========================== Admin functions ==========================
 
     /**
-     * @notice Updates the backend signer address. Only callable by the contract owner.
+     * @notice Updates the backend signer address.
+     * @dev Only callable by the contract owner.
      * @param newSigner The address of the new signer.
      */
     function setSigner(address newSigner) public onlyOwner {
@@ -257,13 +284,14 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
 
     /**
      * @notice Sets the name and image URL for a given type ID.
-     * @param typeId The numeric ID for the NFT type (e.g., 1).
+     * @dev Only callable by the contract owner.
+     * @param typeId The numeric ID for the NFT type.
      * @param typeName The display name for the type (e.g., "Holders NFT").
      * @param imageUrl The IPFS or gateway URL for the image.
      */
     function setTypeInfo(
-        uint16 typeId, 
-        string calldata typeName, 
+        uint16 typeId,
+        string calldata typeName,
         string calldata imageUrl
     ) public onlyOwner {
         typeIdToImageUrl[typeId] = imageUrl;
