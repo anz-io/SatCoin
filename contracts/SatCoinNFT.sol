@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 
 import "base64-sol/base64.sol";
 
@@ -15,7 +16,7 @@ import "base64-sol/base64.sol";
  * and signature-based minting. It supports different NFT types and a flexible 
  * attribute system compatible with OpenSea.
  */
-contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
+contract SatCoinNFT is Ownable2StepUpgradeable, ERC721EnumerableUpgradeable {
 
     // ============================= Constants =============================
 
@@ -37,7 +38,6 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
 
     // ============================= Variables =============================
 
-    uint256 public totalSupply;
     address public signerAddress;
     mapping(bytes32 => bool) public minted;
     mapping(uint256 => bytes) public attributePayload;
@@ -256,8 +256,7 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721Upgradeable {
         );
 
         // Update states
-        uint256 newTokenId = totalSupply;
-        totalSupply++;
+        uint256 newTokenId = totalSupply();
         minted[messageHash] = true;
         attributePayload[newTokenId] = abi.encode(traits);
         tokenTypeId[newTokenId] = typeId;
