@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { Enum as SafeOperationEnum } from "@safe-global/safe-contracts/contracts/common/Enum.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title ISafe
@@ -23,25 +23,25 @@ interface ISafe {
 
 
 /**
- * @title SpendingPolicy
+ * @title SpendingPolicyModule
  * @notice A Safe module that enables a shared daily transfer limit for wallet owners,
- * allowing them to execute transfers below the limit without requiring multisig.
+ *  allowing them to execute transfers below the limit without requiring multisig.
  */
-contract SpendingPolicy {
+contract SpendingPolicyModule {
 
     // ============================= Constants =============================
-    
+
     address public constant NATIVE_TOKEN = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
 
     // ============================== Storage ==============================
-    
+
     /// @notice Maps each Safe to its token-specific daily limits.
     /// @dev mapping(safeAddress => mapping(tokenAddress => dailyLimit))
     mapping(address => mapping(address => uint256)) public tokenDailyLimits;
 
     /// @notice Tracks the amount of a specific token spent by a Safe on a given day.
-    /// @dev mapping(safeAddress => mapping(tokenAddress => mapping(dayTimestamp => spentAmount)))
+    /// @dev mapping(safe => mapping(token => mapping(dayTimestamp => spentAmount)))
     mapping(address => mapping(address => mapping(uint256 => uint256))) public dailySpent;
 
 
@@ -63,22 +63,27 @@ contract SpendingPolicy {
         uint256 amount
     );
 
-    // ====================== Write functions - admin ======================
-    
+
+    // ===================== Write functions - multisig ====================
+
     /**
      * @notice Sets the shared daily transfer limit for a specific token.
      * @dev This function must be called via a multisig transaction from the Safe itself.
-     * To set a policy for native ETH, use `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`.
+     *  To set a policy for native ETH, use `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`.
      * @param token The address of the ERC20 token or native token.
      * @param dailyLimit The new shared daily transfer limit for this token.
      */
     function setDailyLimit(address token, uint256 dailyLimit) public {
+        require(
+            msg.sender.code.length > 0, 
+            "SPM: EOA not allowed"
+        );
         tokenDailyLimits[msg.sender][token] = dailyLimit;
         emit DailyLimitSet(msg.sender, token, dailyLimit);
     }
 
 
-    // ========================== Write functions ==========================
+    // ======================= Write functions - user ======================
     
     /**
      * @notice Allows any owner to execute a token transfer within the daily limit.
@@ -94,15 +99,15 @@ contract SpendingPolicy {
         uint256 amount
     ) public {
         // Check conditions
-        require(ISafe(safe).isOwner(msg.sender), "SpendingPolicy: Caller not a wallet owner");
-        
+        require(ISafe(safe).isOwner(msg.sender), "SPM: Caller not a wallet owner");
+
         uint256 dailyLimit = tokenDailyLimits[safe][token];
-        require(dailyLimit > 0, "SpendingPolicy: No daily limit for this token");
+        require(dailyLimit > 0, "SPM: No daily limit for this token");
 
         uint256 today = (block.timestamp + 8 hours) / 1 days;
         uint256 spent = dailySpent[safe][token][today];
-        require(spent + amount <= dailyLimit, "SpendingPolicy: Exceeds daily limit");
-        
+        require(spent + amount <= dailyLimit, "SPM: Exceeds daily limit");
+
         // State updates
         dailySpent[safe][token][today] = spent + amount;
 
@@ -121,13 +126,13 @@ contract SpendingPolicy {
             );
         }
 
-        require(success, "SpendingPolicy: Transfer failed");
+        require(success, "SPM: Transfer failed");
         emit DailyTransferExecuted(safe, msg.sender, token, to, amount);
     }
 
 
     // =========================== View functions ==========================
-       
+
     /**
      * @notice Gets the daily spending limit for a specified token.
      * @param safe The address of the Safe.
