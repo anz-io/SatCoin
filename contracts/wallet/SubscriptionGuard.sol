@@ -142,7 +142,6 @@ contract SubscriptionGuard is BaseGuard, Ownable2StepUpgradeable {
     }
 
 
-
     // ===================== View functions - override =====================
 
     /**
@@ -168,7 +167,10 @@ contract SubscriptionGuard is BaseGuard, Ownable2StepUpgradeable {
             // Wallet locked
             // EXCEPTION: Allow calls to this contract's `renewSubscription` function to pass through.
             require(
-                (to == address(this)) && (bytes4(data) == this.renewSubscription.selector), 
+                to == address(this) && (
+                    bytes4(data) == this.renewSubscription.selector ||
+                    bytes4(data) == this.bulkRenewSubscription.selector
+                ), 
                 "SubscriptionGuard: Subscription has expired"
             );
         }
@@ -178,5 +180,5 @@ contract SubscriptionGuard is BaseGuard, Ownable2StepUpgradeable {
      * @notice Called by the Safe after every transaction. Not used.
      */
     function checkAfterExecution(bytes32 txHash, bool success) public override {}
-    
+
 }

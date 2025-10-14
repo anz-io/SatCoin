@@ -31,6 +31,7 @@ contract SpendingPolicyModule {
 
     // ============================= Constants =============================
 
+    /// @notice The virtual address of the native token.
     address public constant NATIVE_TOKEN = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
 
@@ -125,8 +126,9 @@ contract SpendingPolicyModule {
                 token, 0, data, SafeOperationEnum.Operation.Call
             );
         }
-
         require(success, "SPM: Transfer failed");
+
+        // Event
         emit DailyTransferExecuted(safe, msg.sender, token, to, amount);
     }
 
@@ -153,4 +155,5 @@ contract SpendingPolicyModule {
         uint256 today = (block.timestamp + 8 hours) / 1 days;
         return dailySpent[safe][token][today];
     }
+    
 }
