@@ -6,20 +6,19 @@ async function main() {
 
   console.log(`👤 Deployer address: ${admin.address}`);
 
-  const safeAccountConfig: SafeAccountConfig = {
-    owners: [
-      admin.address,
-      "0x7b7C993c3c283aaca86913e1c27DB054Ce5fA143",
-    ],
-    threshold: 2
-  };
-
   // Predicted Safe Address
-  const predictedSafe: PredictedSafeProps = { safeAccountConfig };
   const protocolKit = await Safe.init({
     provider: (hardhatNetwork.config as any).url,
     signer: (hardhatNetwork.config.accounts as any)[0],
-    predictedSafe,
+    predictedSafe: {
+      safeAccountConfig: {
+        owners: [
+          admin.address,
+          "0x7b7C993c3c283aaca86913e1c27DB054Ce5fA143",
+        ],
+        threshold: 2
+      }
+    },
   });
   const safeAddress = await protocolKit.getAddress();
   console.log(`🔮 SatCoin Smart Wallet Address: ${safeAddress}`);

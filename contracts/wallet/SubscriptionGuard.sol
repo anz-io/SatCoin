@@ -162,16 +162,26 @@ contract SubscriptionGuard is BaseGuard, Ownable2StepUpgradeable {
         bytes memory, //signatures
         address // msgSender, but not the msgSender for this call
     ) public view override {
-        uint256 expiration = subscriptions[_msgSender()];
+        // RULE 1: Forbid any transaction that tries to call `setGuard` on the Safe itself.
+        // This check is performed for ALL transactions, regardless of subscription status.
+        // We check if the function selector in `data` matches `setGuard(address)`.
+        address safe = _msgSender();
+        require(
+            !(to == safe && bytes4(data) == GuardManager.setGuard.selector),
+            "SubscriptionGuard: Changing the Guard is forbidden"
+        );
+
+        // RULE 2: Check for subscription expiration.
+        uint256 expiration = subscriptions[safe];
         if (block.timestamp > expiration) {
             // Wallet locked
-            // EXCEPTION: Allow calls to this contract's `renewSubscription` function to pass through.
+            // EXCEPTION: Allow calls to this contract's `renewSubscription` to pass through.
             require(
                 to == address(this) && (
                     bytes4(data) == this.renewSubscription.selector ||
                     bytes4(data) == this.bulkRenewSubscription.selector
                 ), 
-                "SubscriptionGuard: Subscription has expired"
+                "SubscriptionGuard: Subscription expired, call `renewSubscription`"
             );
         }
     }
