@@ -57,7 +57,7 @@ contract SubscriptionGuard is BaseGuard, Ownable2StepUpgradeable {
         __Ownable_init(_msgSender());
         __Ownable2Step_init();
 
-        require(initialTreasury != address(0), "SubscriptionGuard: Invalid treasury address");
+        require(initialTreasury != address(0), "SG: Invalid treasury address");
         treasury = initialTreasury;
     }
 
@@ -79,7 +79,7 @@ contract SubscriptionGuard is BaseGuard, Ownable2StepUpgradeable {
      * @notice Updates the treasury address that receives subscription fees.
      */
     function setTreasury(address newTreasury) public onlyOwner {
-        require(newTreasury != address(0), "SubscriptionGuard: Invalid treasury address");
+        require(newTreasury != address(0), "SG: Invalid treasury address");
         address oldTreasury = treasury;
         treasury = newTreasury;
         emit TreasurySet(oldTreasury, newTreasury);
@@ -98,7 +98,7 @@ contract SubscriptionGuard is BaseGuard, Ownable2StepUpgradeable {
     function renewSubscription(address safe, address token) public {
         // Check conditions
         uint256 feeAmount = tokenFees[token];
-        require(feeAmount > 0, "SubscriptionGuard: This token is not supported");
+        require(feeAmount > 0, "SG: This token is not supported");
 
         // Transfer the fee
         IERC20(token).safeTransferFrom(_msgSender(), treasury, feeAmount);
@@ -124,8 +124,8 @@ contract SubscriptionGuard is BaseGuard, Ownable2StepUpgradeable {
     function bulkRenewSubscription(address safe, address token, uint8 months) public {
         // Check conditions
         uint256 feeAmount = tokenFees[token];
-        require(feeAmount > 0, "SubscriptionGuard: This token is not supported");
-        require(months > 0, "SubscriptionGuard: Invalid months");
+        require(feeAmount > 0, "SG: This token is not supported");
+        require(months > 0, "SG: Invalid months");
 
         // Transfer the fee
         IERC20(token).safeTransferFrom(_msgSender(), treasury, feeAmount * months);
@@ -168,7 +168,7 @@ contract SubscriptionGuard is BaseGuard, Ownable2StepUpgradeable {
         address safe = _msgSender();
         require(
             !(to == safe && bytes4(data) == GuardManager.setGuard.selector),
-            "SubscriptionGuard: Changing the Guard is forbidden"
+            "SG: Changing the Guard is forbidden"
         );
 
         // RULE 2: Check for subscription expiration.
@@ -181,7 +181,7 @@ contract SubscriptionGuard is BaseGuard, Ownable2StepUpgradeable {
                     bytes4(data) == this.renewSubscription.selector ||
                     bytes4(data) == this.bulkRenewSubscription.selector
                 ), 
-                "SubscriptionGuard: Subscription expired, call `renewSubscription`"
+                "SG: Subscription expired, call `renewSubscription`"
             );
         }
     }

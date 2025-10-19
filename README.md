@@ -12,7 +12,13 @@ This project provides a set of Solidity smart contracts to create an `ERC20` tok
 
 * **`ProofOfReserve.sol`**: A contract for on-chain transparency. It allows the project owner to record and manage Bitcoin reserve data, such as transaction hashes and balances, providing a public proof of the assets backing SatCoin.
 
-* **`SatCoinNFT.sol`**: A contract for a dynamic, on-chain generated NFT collection. It features a secure, signature-based minting process where a backend signer authorizes each mint, preventing unauthorized creation. The contract supports different NFT types with unique images and traits, which are dynamically assembled and returned as a Base64 encoded JSON in the tokenURI. 
+* **`SatCoinNFT.sol`**: A contract for a dynamic, on-chain generated NFT collection. It features a secure, signature-based minting process where a backend signer authorizes each mint, preventing unauthorized creation. The contract supports different NFT types with unique images and traits, which are dynamically assembled and returned as a Base64 encoded JSON in the tokenURI.
+
+* **`SubscriptionGuard.sol`**: An upgradeable Safe `Guard` contract that enforces a subscription fee for wallet usage. It blocks transactions if the subscription expires, allowing only renewal calls, and prevents the Guard itself from being removed via `setGuard`.
+
+* **`SpendingPolicyModule.sol`**: An upgradeable Safe `Module` enabling wallet owners to execute daily transfers (native token or ERC20) below a shared, configurable limit without requiring full multisig approval.
+
+* **`WalletInitializer.sol`**: A utility contract designed for `delegatecall` during Safe wallet creation (`setup` function) to atomically configure the initial `Guard` and enable the primary `Module` in a single transaction.
 
 ### Libraries
 

@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { SatCoinNFT } from "../typechain-types";
+import { SatCoinNFT, SatCoinNFTTest } from "../typechain-types";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 type Trait = {
@@ -109,7 +109,7 @@ describe("SatCoinNFT", function () {
       { key: "Level", value: "5", displayType: "number" },
     ];
 
-    const { signature, message, messageHash } = await getMintSignature(
+    const { signature, messageHash } = await getMintSignature(
       nft,
       signer,
       user1.address,
@@ -250,5 +250,32 @@ describe("SatCoinNFT", function () {
     expect(typeTrait.trait_type).to.equal("NFT Type");
     expect(typeTrait.value).to.equal("Basic NFT");
   });
+
+
+  it("should work with mock contract", async function () {
+    const [owner, signer, user1] = await ethers.getSigners();
+    const SatCoinNFTTestFactory = await ethers.getContractFactory("SatCoinNFTTest");
+    const nft = (await upgrades.deployProxy(
+      SatCoinNFTTestFactory,
+      ["SatCoin NFT", "SCNFT", owner.address, signer.address],
+    )) as unknown as SatCoinNFTTest;
+    await nft.waitForDeployment();
+
+    await nft.setTypeInfo(2, "Basic NFT", "ipfs://basic/image.png");
+    const typeId = 2;
+    const baseTraits: Trait[] = []; // Empty traits array
+    const { signature } = await getMintSignature(
+      nft,
+      signer,
+      user1.address,
+      typeId,
+      baseTraits
+    );
+    await nft.connect(user1).mint(user1.address, typeId, baseTraits, signature);
+
+    await nft.updateAllTokenURIs();
+    await nft.clearAllNFTs();
+    expect(await nft.totalSupply()).to.equal(0);
+  })
 
 });
