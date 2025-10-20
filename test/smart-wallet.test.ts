@@ -82,7 +82,7 @@ describe("SmartWallet", function () {
     const safeAddress = await safe.getAddress();
 
     const initializerCalldata = walletInitializer.interface.encodeFunctionData(
-      "initialize",
+      "initializeSafe",
       [await subscriptionGuard.getAddress(), await spendingPolicyModule.getAddress()]
     );
 

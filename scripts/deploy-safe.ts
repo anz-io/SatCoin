@@ -1,12 +1,33 @@
 import { ethers, network as hardhatNetwork } from "hardhat";
-import Safe, { SafeAccountConfig, PredictedSafeProps } from "@safe-global/protocol-kit";
+import Safe from "@safe-global/protocol-kit";
+
+import "dotenv/config";
+import { SpendingPolicyModule, SubscriptionGuard, WalletInitializer } from "../typechain-types";
 
 async function main() {
-  const [admin] = await ethers.getSigners();
+  
+  // Load signers and contract addresses
+  const [admin, user1] = await ethers.getSigners();
+  console.log(`👤 Deployer address: ${admin.address}\n`);
 
-  console.log(`👤 Deployer address: ${admin.address}`);
+  const walletInitializer = await ethers.getContractAt(
+    "WalletInitializer", process.env.BNB_WI!
+  ) as WalletInitializer
+  const subscriptionGuard = await ethers.getContractAt(
+    "SubscriptionGuard", process.env.BNB_SG!
+  ) as SubscriptionGuard
+  const spendingPolicyModule = await ethers.getContractAt(
+    "SpendingPolicyModule", process.env.BNB_SPM!
+  ) as SpendingPolicyModule
+  console.log(`🔮 Wallet Initializer address: ${await walletInitializer.getAddress()}`);
+  console.log(`🔮 Subscription Guard address: ${await subscriptionGuard.getAddress()}`);
+  console.log(`🔮 Spending Policy Module address: ${await spendingPolicyModule.getAddress()}\n`);
 
   // Predicted Safe Address
+  const walletInitializeData = walletInitializer.interface.encodeFunctionData(
+    "initializeSafe",
+    [await subscriptionGuard.getAddress(), await spendingPolicyModule.getAddress()]
+  );
   const protocolKit = await Safe.init({
     provider: (hardhatNetwork.config as any).url,
     signer: (hardhatNetwork.config.accounts as any)[0],
@@ -14,9 +35,11 @@ async function main() {
       safeAccountConfig: {
         owners: [
           admin.address,
-          "0x7b7C993c3c283aaca86913e1c27DB054Ce5fA143",
+          user1.address,
         ],
-        threshold: 2
+        threshold: 2,
+        to: process.env.BNB_WI!,    // wallet initializer contract address
+        data: walletInitializeData,
       }
     },
   });

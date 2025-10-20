@@ -27,6 +27,7 @@ const config: HardhatUserConfig = {
       url: process.env.RPC_BNB,
       accounts: [
         process.env.PRIVATE_KEY_ADMIN!,
+        process.env.PRIVATE_KEY_USER1!,
       ]
     },
     polygon: {

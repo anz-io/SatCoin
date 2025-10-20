@@ -1,5 +1,5 @@
 import "dotenv/config"
-import { deployUpgradeableContract } from "./utils"
+import { deployContract, deployUpgradeableContract } from "./utils"
 import { ethers } from "hardhat";
 
 async function main() {
@@ -7,9 +7,13 @@ async function main() {
   
   // await deployUpgradeableContract("ProofOfReserve", [], true)
   // await deployUpgradeableContract("SatCoin", [], true)
-  await deployUpgradeableContract("SatCoinNFTTest", [
-    "SatCoin NFT - Test 2", "SatCoin NFT - Test 2", admin.address, admin.address,
-  ], true)
+  // await deployUpgradeableContract("SatCoinNFTTest", [
+  //   "SatCoin NFT - Test 2", "SatCoin NFT - Test 2", admin.address, admin.address,
+  // ], true)
+
+  await deployUpgradeableContract("SubscriptionGuard", [admin.address], true)
+  await deployUpgradeableContract("SpendingPolicyModule", [], true)
+  await deployContract("WalletInitializer", [], true)
 
 }
 

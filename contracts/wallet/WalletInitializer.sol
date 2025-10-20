@@ -19,7 +19,7 @@ contract WalletInitializer {
      * @param guard The address of the `SubscriptionGuard` contract.
      * @param module The address of the `SpendingPolicyModule` contract.
      */
-    function initialize(address guard, address module) external {
+    function initializeSafe(address guard, address module) external {
         // Because this function is executed via DELEGATECALL from the new Safe wallet,
         // the `address(this)` inside the ISafe interface will be the Safe's address.
         // Therefore, the `authorized` modifier on setGuard and enableModule will pass.
