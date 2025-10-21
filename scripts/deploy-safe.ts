@@ -7,8 +7,8 @@ import { SpendingPolicyModule, SubscriptionGuard, WalletInitializer } from "../t
 async function main() {
   
   // Load signers and contract addresses
-  const [admin, user1] = await ethers.getSigners();
-  console.log(`👤 Deployer address: ${admin.address}\n`);
+  const [user0, user1] = await ethers.getSigners();
+  console.log(`👤 Deployer address: ${user0.address}\n`);
 
   const walletInitializer = await ethers.getContractAt(
     "WalletInitializer", process.env.BNB_WI!
@@ -34,7 +34,7 @@ async function main() {
     predictedSafe: {
       safeAccountConfig: {
         owners: [
-          admin.address,
+          user0.address,
           user1.address,
         ],
         threshold: 2,
@@ -60,7 +60,7 @@ async function main() {
 
   // Send deployment transaction
   console.log(`⏳ Sending deployment transaction to ${hardhatNetwork.name} network...`);
-  const txResponse = await admin.sendTransaction({
+  const txResponse = await user0.sendTransaction({
     to: deploymentTransaction.to,
     value: deploymentTransaction.value,
     data: deploymentTransaction.data,

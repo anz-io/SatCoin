@@ -116,11 +116,13 @@ contract SpendingPolicyModule {
         bool success;
         if (token == NATIVE_TOKEN) {
             // Native token transfer
+            require(safe.balance >= amount, "SPM: Insufficient balance");
             success = ISafe(safe).execTransactionFromModule(
                 to, amount, "", SafeOperationEnum.Operation.Call
             );
         } else {
             // ERC20 token transfer
+            require(IERC20(token).balanceOf(safe) >= amount, "SPM: Insufficient balance");
             bytes memory data = abi.encodeWithSelector(IERC20.transfer.selector, to, amount);
             success = ISafe(safe).execTransactionFromModule(
                 token, 0, data, SafeOperationEnum.Operation.Call

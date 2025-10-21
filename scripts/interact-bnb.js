@@ -16,5 +16,19 @@ let dca = await upgrades.deployProxy(dcaFactory, [
 ])
 console.log(`DCA deployed to: ${GREEN}${await dca.getAddress()}${RESET}`)
 
-let safe = await ethers.getContractAt("Safe", process.env.BNB_SAFE_0)
-console.log(await safe.modules("0x0000000000000000000000000000000000000001"))
+let safe0 = await ethers.getContractAt("Safe", process.env.BNB_SAFE_0)
+console.log(await safe0.modules("0x0000000000000000000000000000000000000001"))
+
+let [user0, user1] = await ethers.getSigners()
+let spendingPolicyModule = await ethers.getContractAt(
+  "SpendingPolicyModule", process.env.BNB_SPM
+)
+let mockUSDC = await ethers.getContractAt(
+  "MockUSDC", process.env.BNB_MUSDC
+)
+await spendingPolicyModule.connect(user1).executeDailyTransfer(
+  await safe0.getAddress(),
+  await mockUSDC.getAddress(),
+  user1.address,
+  ethers.parseUnits("100", 6),
+)

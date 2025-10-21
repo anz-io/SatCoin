@@ -53,8 +53,8 @@ async function executeSafeTx(
 async function main() {
 
   // Load signers and contract addresses
-  const [admin, user1] = await ethers.getSigners();
-  console.log(`👤 Deployer address: ${admin.address}\n`);
+  const [user0, user1] = await ethers.getSigners();
+  console.log(`👤 Deployer address: ${user0.address}\n`);
 
   const walletInitializer = await ethers.getContractAt(
     "WalletInitializer", process.env.BNB_WI!
@@ -78,8 +78,18 @@ async function main() {
   console.log(`🔑 Safe0 address: ${await safe0.getAddress()}`);
   console.log(`💵 MockUSDC address: ${await mockUSDC.getAddress()}\n`);
 
+  // Renew subscription
+  const approveTx = await mockUSDC.connect(user0).approve(await subscriptionGuard.getAddress(), ethers.MaxUint256);
+  await approveTx.wait();
+  console.log(`✅ Approve transaction hash: ${approveTx.hash}`);
+  let renewTx = await subscriptionGuard.connect(user0).renewSubscription(
+    await safe0.getAddress(), await mockUSDC.getAddress()
+  );
+  await renewTx.wait();
+  console.log(`✅ Subscription renewed: ${renewTx.hash}`);
+
   // Set daily limit
-  await executeSafeTx(
+  const limitTx = await executeSafeTx(
     safe0,
     await spendingPolicyModule.getAddress(),
     '0',
@@ -87,21 +97,23 @@ async function main() {
       "setDailyLimit",
       [await mockUSDC.getAddress(), parseUnits("1000", 6)],  // Allow 1000 USDC withdrawals
     ),
-    [admin, user1],
+    [user0, user1],
   )
+  await limitTx.wait();
   
   // Check if the daily limit is set
   const dailyLimit = await spendingPolicyModule.getDailyLimit(safe0, await mockUSDC.getAddress());
   console.log(`✅ New daily limit set: ${formatUnits(dailyLimit, 6)}`);
 
   // Withdraw USDC
-  const tx = await spendingPolicyModule.connect(user1).executeDailyTransfer(
+  const withdrawTx = await spendingPolicyModule.connect(user1).executeDailyTransfer(
     await safe0.getAddress(),
     await mockUSDC.getAddress(),
     user1.address,
     parseUnits("100", 6),
   )
-  console.log(`💵 Withdrawal of 100 USDC transaction hash: ${tx.hash}`);
+  await withdrawTx.wait();
+  console.log(`💵 Withdrawal of 100 USDC transaction hash: ${withdrawTx.hash}`);
 
 }
 
