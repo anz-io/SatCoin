@@ -74,6 +74,18 @@
         "internalType": "uint256",
         "name": "feeInSatCoin",
         "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "slippage",
+        "type": "uint256"
       }
     ],
     "name": "Bought",
@@ -218,6 +230,18 @@
         "indexed": false,
         "internalType": "uint256",
         "name": "feeInStableCoin",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "slippage",
         "type": "uint256"
       }
     ],

@@ -111,14 +111,18 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
         address indexed tokenIn,
         uint256 amountInStableCoin,
         uint256 amountOutSatCoin,
-        uint256 feeInSatCoin
+        uint256 feeInSatCoin,
+        uint256 price,
+        uint256 slippage
     );
     event Sold(
         address indexed user,
         address indexed tokenOut,
         uint256 amountInSatCoin,
         uint256 amountOutStableCoin,
-        uint256 feeInStableCoin
+        uint256 feeInStableCoin,
+        uint256 price,
+        uint256 slippage
     );
 
 
@@ -419,7 +423,8 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
         address recipient
     ) public returns (uint256 satCoinAmountOut, uint256 feeAmount) {
         // Preview the output amount
-        (satCoinAmountOut, feeAmount, , ) = previewBuyExactIn(amountIn, tokenIn);
+        uint256 price; uint256 slippage;
+        (satCoinAmountOut, feeAmount, price, slippage) = previewBuyExactIn(amountIn, tokenIn);
         require(satCoinAmountOut >= minAmountOut, "Teller: Insufficient output amount");
 
         // Transfer tokens
@@ -428,7 +433,10 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
         satCoin.safeTransfer(finalRecipient, satCoinAmountOut);
 
         // Event
-        emit Bought(finalRecipient, tokenIn, amountIn, satCoinAmountOut, feeAmount);
+        emit Bought(
+            finalRecipient, tokenIn, amountIn, 
+            satCoinAmountOut, feeAmount, price, slippage
+        );
     }
 
     /**
@@ -447,7 +455,8 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
         address recipient
     ) public returns (uint256 stablecoinAmountOut, uint256 feeAmount) {
         // Preview the output amount
-        (stablecoinAmountOut, feeAmount, , ) = previewSellExactIn(amountIn, tokenOut);
+        uint256 price; uint256 slippage;
+        (stablecoinAmountOut, feeAmount, price, slippage) = previewSellExactIn(amountIn, tokenOut);
         require(stablecoinAmountOut >= minAmountOut, "Teller: Insufficient output amount");
 
         // Transfer tokens
@@ -456,7 +465,10 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
         IERC20(tokenOut).safeTransfer(finalRecipient, stablecoinAmountOut);
 
         // Event
-        emit Sold(finalRecipient, tokenOut, amountIn, stablecoinAmountOut, feeAmount);
+        emit Sold(
+            finalRecipient, tokenOut, amountIn, 
+            stablecoinAmountOut, feeAmount, price, slippage
+        );
     }
 
     /**
@@ -475,7 +487,8 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
         address recipient
     ) public returns (uint256 stablecoinAmountIn, uint256 feeAmount) {
         // Preview the input amount
-        (stablecoinAmountIn, feeAmount, , ) = previewBuyExactOut(amountOut, tokenIn);
+        uint256 price; uint256 slippage;
+        (stablecoinAmountIn, feeAmount, price, slippage) = previewBuyExactOut(amountOut, tokenIn);
         require(stablecoinAmountIn <= maxAmountIn, "Teller: Excessive input amount");
 
         // Transfer tokens
@@ -484,7 +497,10 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
         satCoin.safeTransfer(finalRecipient, amountOut);
 
         // Event
-        emit Bought(finalRecipient, tokenIn, stablecoinAmountIn, amountOut, feeAmount);
+        emit Bought(
+            finalRecipient, tokenIn, stablecoinAmountIn, 
+            amountOut, feeAmount, price, slippage
+        );
     }
 
     /**
@@ -503,7 +519,8 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
         address recipient
     ) public returns (uint256 satCoinAmountIn, uint256 feeAmount) {
         // Preview the input amount
-        (satCoinAmountIn, feeAmount, , ) = previewSellExactOut(amountOut, tokenOut);
+        uint256 price; uint256 slippage;
+        (satCoinAmountIn, feeAmount, price, slippage) = previewSellExactOut(amountOut, tokenOut);
         require(satCoinAmountIn <= maxAmountIn, "Teller: Excessive input amount");
 
         // Transfer tokens
@@ -512,7 +529,10 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
         IERC20(tokenOut).safeTransfer(finalRecipient, amountOut);
 
         // Event
-        emit Sold(finalRecipient, tokenOut, satCoinAmountIn, amountOut, feeAmount);
+        emit Sold(
+            finalRecipient, tokenOut, satCoinAmountIn, 
+            amountOut, feeAmount, price, slippage
+        );
     }
 
 }
