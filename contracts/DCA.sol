@@ -346,7 +346,7 @@ contract DCA is Initializable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeab
         IERC20 tokenIn = IERC20(plan.tokenIn);
 
         // Preview & Transfer
-        (uint256 requiredAmountIn, ) = teller.previewBuyExactOut(amountOut, plan.tokenIn);
+        (uint256 requiredAmountIn, , , ) = teller.previewBuyExactOut(amountOut, plan.tokenIn);
         require(requiredAmountIn <= maxAmountIn, "DCA: Excessive input amount");
         tokenIn.safeTransferFrom(plan.user, address(this), requiredAmountIn);
 

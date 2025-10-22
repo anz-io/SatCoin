@@ -171,7 +171,7 @@ describe("DCA", function () {
     for (const planId of planIdsToExecute) {
       const plan = await dca.dcaPlans(planId);
       if (plan.dcaType === EXACT_IN) {
-        const [satCoinAmountOut,] = await teller.previewBuyExactIn(plan.amount, mockusdcAddress);
+        const [satCoinAmountOut, , , ] = await teller.previewBuyExactIn(plan.amount, mockusdcAddress);
         if (plan.user === user1.address) {
           expectedSatCoinForUser1 += satCoinAmountOut;
         } else {

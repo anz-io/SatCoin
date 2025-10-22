@@ -35,12 +35,22 @@ interface ITeller {
     function previewBuyExactIn(
         uint256 amountIn, 
         address tokenIn
-    ) external view returns (uint256 satCoinAmountOut, uint256 feeAmount);
+    ) external view returns (
+        uint256 satCoinAmountOut, 
+        uint256 feeAmount,
+        uint256 price,
+        uint256 slippage
+    );
 
     function previewBuyExactOut(
         uint256 amountOut, 
         address tokenIn
-    ) external view returns (uint256 stablecoinAmountIn, uint256 feeAmount);
+    ) external view returns (
+        uint256 stablecoinAmountIn, 
+        uint256 feeAmount, 
+        uint256 price, 
+        uint256 slippage
+    );
 }
 
 
@@ -257,19 +267,26 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
      * @param tokenIn The address of the stablecoin being paid.
      * @return satCoinAmountOut The expected amount of SatCoin to be received after fees.
      * @return feeAmount The fee charged for the trade, denominated in SatCoin.
+     * @return price The price of the stablecoin.
+     * @return slippage The slippage of the trade.
      */
     function previewBuyExactIn(
         uint256 amountIn, 
         address tokenIn
-    ) public view returns (uint256 satCoinAmountOut, uint256 feeAmount) {
+    ) public view returns (
+        uint256 satCoinAmountOut, 
+        uint256 feeAmount,
+        uint256 price,
+        uint256 slippage
+    ) {
         // 1. Check conditions and calculate the ideal SatCoin output amount.
         require(stablecoinDecimals[tokenIn] > 0, "Teller: Token not supported");
-        uint256 price = getPrice(stablecoinDecimals[tokenIn]);
+        price = getPrice(stablecoinDecimals[tokenIn]);
         uint256 idealSatCoinOut = (amountIn * WAD).wDivDown(price);
         require(idealSatCoinOut <= MAX_TRADE_SATCOIN_EQUIVALENT, "Teller: Trade size exceeds limit");
 
         // 2. Calculate the amount after applying slippage.
-        uint256 slippage = calculateSlippage(idealSatCoinOut);
+        slippage = calculateSlippage(idealSatCoinOut);
         uint256 satCoinOutAfterSlippage = idealSatCoinOut.wMulDown(WAD - slippage);
 
         // 3. Calculate the fee and the final output amount.
@@ -283,19 +300,26 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
      * @param tokenOut The address of the stablecoin to be received.
      * @return stablecoinAmountOut The expected amount of stablecoin to be received after fees.
      * @return feeAmount The fee charged for the trade, denominated in the stablecoin (`tokenOut`).
+     * @return price The price of the stablecoin.
+     * @return slippage The slippage of the trade.
      */
     function previewSellExactIn(
         uint256 amountIn, 
         address tokenOut
-    ) public view returns (uint256 stablecoinAmountOut, uint256 feeAmount) {
+    ) public view returns (
+        uint256 stablecoinAmountOut, 
+        uint256 feeAmount, 
+        uint256 price, 
+        uint256 slippage
+    ) {
         // 1. Check conditions and calculate the ideal stablecoin output amount.
         require(amountIn <= MAX_TRADE_SATCOIN_EQUIVALENT, "Teller: Trade size exceeds limit");
         require(stablecoinDecimals[tokenOut] > 0, "Teller: Token not supported");
-        uint256 price = getPrice(stablecoinDecimals[tokenOut]);
+        price = getPrice(stablecoinDecimals[tokenOut]);
         uint256 idealStableCoinOut = amountIn.wMulDown(price) / WAD;
 
         // 2. Calculate the amount after applying slippage.
-        uint256 slippage = calculateSlippage(amountIn);
+        slippage = calculateSlippage(amountIn);
         uint256 stablecoinOutAfterSlippage = idealStableCoinOut.wMulDown(WAD - slippage);
 
         // 3. Calculate the fee and the final output amount.
@@ -309,11 +333,18 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
      * @param tokenIn The address of the stablecoin to be paid.
      * @return stablecoinAmountIn The expected amount of stablecoin required to be paid.
      * @return feeAmount The fee that will be charged, denominated in SatCoin.
+     * @return price The price of the stablecoin.
+     * @return slippage The slippage of the trade.
      */
     function previewBuyExactOut(
         uint256 amountOut, 
         address tokenIn
-    ) public view returns (uint256 stablecoinAmountIn, uint256 feeAmount) {
+    ) public view returns (
+        uint256 stablecoinAmountIn, 
+        uint256 feeAmount, 
+        uint256 price, 
+        uint256 slippage
+    ) {
         // 1. Reverse calculate the amount before the fee is applied (rounding up).
         require(stablecoinDecimals[tokenIn] > 0, "Teller: Token not supported");
         uint256 satCoinAmountBeforeFee = amountOut.wDivUp(WAD - feeRate);
@@ -324,11 +355,11 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
         );
 
         // 2. Reverse calculate the ideal amount before slippage (rounding up).
-        uint256 slippage = calculateSlippage(satCoinAmountBeforeFee);
+        slippage = calculateSlippage(satCoinAmountBeforeFee);
         uint256 idealSatCoinAmount = satCoinAmountBeforeFee.wDivUp(WAD - slippage);
 
         // 3. Calculate the final stablecoin input amount (rounding up).
-        uint256 price = getPrice(stablecoinDecimals[tokenIn]);
+        price = getPrice(stablecoinDecimals[tokenIn]);
         stablecoinAmountIn = idealSatCoinAmount.wMulUp(price) / WAD;
     }
 
@@ -338,16 +369,23 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
      * @param tokenOut The address of the stablecoin to be received.
      * @return satCoinAmountIn The expected amount of SatCoin required to be paid.
      * @return feeAmount The fee that will be charged denominated in the stablecoin (`tokenOut`).
+     * @return price The price of the stablecoin.
+     * @return slippage The slippage of the trade.
      */
     function previewSellExactOut(
         uint256 amountOut, 
         address tokenOut
-    ) public view returns (uint256 satCoinAmountIn, uint256 feeAmount) {
+    ) public view returns (
+        uint256 satCoinAmountIn,
+        uint256 feeAmount,
+        uint256 price,
+        uint256 slippage
+    ) {
         // 1. Reverse calculate the amount before the fee is applied (rounding up).
         require(stablecoinDecimals[tokenOut] > 0, "Teller: Token not supported");
         uint256 stablecoinAmountBeforeFee = amountOut.wDivUp(WAD - feeRate);
         feeAmount = stablecoinAmountBeforeFee - amountOut;
-        uint256 price = getPrice(stablecoinDecimals[tokenOut]);
+        price = getPrice(stablecoinDecimals[tokenOut]);
 
         // 2. Estimate the SatCoin input to calculate slippage.
         uint256 estimatedSatCoinIn = stablecoinAmountBeforeFee.wDivUp(price);
@@ -355,7 +393,7 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
             estimatedSatCoinIn <= MAX_TRADE_SATCOIN_EQUIVALENT, 
             "Teller: Trade size exceeds limit"
         );
-        uint256 slippage = calculateSlippage(estimatedSatCoinIn);
+        slippage = calculateSlippage(estimatedSatCoinIn);
 
         // 3. Reverse calculate the ideal stablecoin amount before slippage (rounding up).
         uint256 idealStableCoinAmount = stablecoinAmountBeforeFee.wDivUp(WAD - slippage);
@@ -381,7 +419,7 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
         address recipient
     ) public returns (uint256 satCoinAmountOut, uint256 feeAmount) {
         // Preview the output amount
-        (satCoinAmountOut, feeAmount) = previewBuyExactIn(amountIn, tokenIn);
+        (satCoinAmountOut, feeAmount, , ) = previewBuyExactIn(amountIn, tokenIn);
         require(satCoinAmountOut >= minAmountOut, "Teller: Insufficient output amount");
 
         // Transfer tokens
@@ -409,7 +447,7 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
         address recipient
     ) public returns (uint256 stablecoinAmountOut, uint256 feeAmount) {
         // Preview the output amount
-        (stablecoinAmountOut, feeAmount) = previewSellExactIn(amountIn, tokenOut);
+        (stablecoinAmountOut, feeAmount, , ) = previewSellExactIn(amountIn, tokenOut);
         require(stablecoinAmountOut >= minAmountOut, "Teller: Insufficient output amount");
 
         // Transfer tokens
@@ -437,7 +475,7 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
         address recipient
     ) public returns (uint256 stablecoinAmountIn, uint256 feeAmount) {
         // Preview the input amount
-        (stablecoinAmountIn, feeAmount) = previewBuyExactOut(amountOut, tokenIn);
+        (stablecoinAmountIn, feeAmount, , ) = previewBuyExactOut(amountOut, tokenIn);
         require(stablecoinAmountIn <= maxAmountIn, "Teller: Excessive input amount");
 
         // Transfer tokens
@@ -465,7 +503,7 @@ contract Teller is ITeller, Ownable2StepUpgradeable {
         address recipient
     ) public returns (uint256 satCoinAmountIn, uint256 feeAmount) {
         // Preview the input amount
-        (satCoinAmountIn, feeAmount) = previewSellExactOut(amountOut, tokenOut);
+        (satCoinAmountIn, feeAmount, , ) = previewSellExactOut(amountOut, tokenOut);
         require(satCoinAmountIn <= maxAmountIn, "Teller: Excessive input amount");
 
         // Transfer tokens
