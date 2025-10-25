@@ -18,7 +18,9 @@ This project provides a set of Solidity smart contracts to create an `ERC20` tok
 
 * **`SpendingPolicyModule.sol`**: An upgradeable Safe `Module` enabling wallet owners to execute daily transfers (native token or ERC20) below a shared, configurable limit without requiring full multisig approval.
 
-* **`WalletInitializer.sol`**: A utility contract designed for `delegatecall` during Safe wallet creation (`setup` function) to atomically configure the initial `Guard` and enable the primary `Module` in a single transaction.
+* **`WalletNameRegistry.sol`**: A central, upgradeable registry to store names for Safe wallets.
+
+* **`WalletInitializer.sol`**: A stateless contract designed for `delegatecall` during Safe wallet creation (`setup` function) to atomically configure the initial `Guard`, enable the primary `Module`, and set the name for the wallet in a single transaction.
 
 ### Libraries
 

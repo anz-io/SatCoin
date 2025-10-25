@@ -38,7 +38,7 @@ contract SpendingPolicyModule {
     // ============================== Storage ==============================
 
     /// @notice Maps each Safe to its token-specific daily limits.
-    /// @dev mapping(safeAddress => mapping(tokenAddress => dailyLimit))
+    /// @dev mapping(safe => mapping(token => dailyLimit))
     mapping(address => mapping(address => uint256)) public tokenDailyLimits;
 
     /// @notice Tracks the amount of a specific token spent by a Safe on a given day.

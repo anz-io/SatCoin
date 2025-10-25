@@ -8,6 +8,7 @@ import { deployContract, deployUpgradeableContract } from "../scripts/utils"
 import {
   SpendingPolicyModule, SubscriptionGuard, MockUSDC,
   Safe as SafeContract, WalletInitializer,
+  WalletNameRegistry,
 } from "../typechain-types"
 
 
@@ -69,6 +70,10 @@ describe("SmartWallet", function () {
       "SpendingPolicyModule", []
     ) as SpendingPolicyModule
 
+    const walletNameRegistry = await deployUpgradeableContract(
+      "WalletNameRegistry", []
+    ) as WalletNameRegistry
+
     const walletInitializer = await deployContract(
       "WalletInitializer", []
     ) as WalletInitializer
@@ -82,8 +87,12 @@ describe("SmartWallet", function () {
     const safeAddress = await safe.getAddress();
 
     const initializerCalldata = walletInitializer.interface.encodeFunctionData(
-      "initializeSafe",
-      [await subscriptionGuard.getAddress(), await spendingPolicyModule.getAddress()]
+      "initializeSafe",[
+        await subscriptionGuard.getAddress(), 
+        await spendingPolicyModule.getAddress(),
+        await walletNameRegistry.getAddress(),
+        "My Safe Wallet",
+      ]
     );
 
     await safe.setup(
@@ -104,15 +113,16 @@ describe("SmartWallet", function () {
     );
 
     return {
-      subscriptionGuard, spendingPolicyModule, walletInitializer, subscriptionFee,
-      mockUSDC, safe, safeAddress, admin, treasury, user1, user2, user3,
+      subscriptionGuard, spendingPolicyModule, walletInitializer, mockUSDC,
+      subscriptionFee, safe, safeAddress, walletNameRegistry, 
+      admin, treasury, user1, user2, user3,
     }
   }
 
 
   it("should correctly deploy a Safe wallet and setup Guard & Module", async function () {
     const {
-      safe, subscriptionGuard, spendingPolicyModule, user1, user2, user3,
+      safe, subscriptionGuard, spendingPolicyModule, user1, user2, user3, walletNameRegistry,
     } = await loadFixture(deployContractsFixture)
 
     // 1. validate owners and threshold
@@ -135,6 +145,10 @@ describe("SmartWallet", function () {
       await spendingPolicyModule.getAddress(),
     );
     expect(isModuleEnabled).to.be.true;
+
+    // 4. validate name is set
+    const name = await walletNameRegistry.names(await safe.getAddress());
+    expect(name).to.equal("My Safe Wallet");
   })
 
 
