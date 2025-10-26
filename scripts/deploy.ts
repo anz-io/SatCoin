@@ -11,8 +11,9 @@ async function main() {
   //   "SatCoin NFT - Test 2", "SatCoin NFT - Test 2", admin.address, admin.address,
   // ], true)
 
-  await deployUpgradeableContract("SubscriptionGuard", [admin.address], true)
-  await deployUpgradeableContract("SpendingPolicyModule", [], true)
+  // await deployUpgradeableContract("SubscriptionGuard", [admin.address], true)
+  // await deployUpgradeableContract("SpendingPolicyModule", [], true)
+  await deployUpgradeableContract("WalletNameRegistry", [], true)
   await deployContract("WalletInitializer", [], true)
 
 }

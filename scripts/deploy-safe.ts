@@ -2,7 +2,7 @@ import { ethers, network as hardhatNetwork } from "hardhat";
 import Safe from "@safe-global/protocol-kit";
 
 import "dotenv/config";
-import { SpendingPolicyModule, SubscriptionGuard, WalletInitializer } from "../typechain-types";
+import { SpendingPolicyModule, SubscriptionGuard, WalletInitializer, WalletNameRegistry } from "../typechain-types";
 
 async function main() {
   
@@ -19,6 +19,9 @@ async function main() {
   const spendingPolicyModule = await ethers.getContractAt(
     "SpendingPolicyModule", process.env.BNB_SPM!
   ) as SpendingPolicyModule
+  const walletNameRegistry = await ethers.getContractAt(
+    "WalletNameRegistry", process.env.BNB_WNR!
+  ) as WalletNameRegistry
   console.log(`🔮 Wallet Initializer address: ${await walletInitializer.getAddress()}`);
   console.log(`🔮 Subscription Guard address: ${await subscriptionGuard.getAddress()}`);
   console.log(`🔮 Spending Policy Module address: ${await spendingPolicyModule.getAddress()}\n`);
@@ -26,7 +29,12 @@ async function main() {
   // Predicted Safe Address
   const walletInitializeData = walletInitializer.interface.encodeFunctionData(
     "initializeSafe",
-    [await subscriptionGuard.getAddress(), await spendingPolicyModule.getAddress()]
+    [
+      await subscriptionGuard.getAddress(), 
+      await spendingPolicyModule.getAddress(),
+      await walletNameRegistry.getAddress(),
+      "My Safe Wallet",
+    ]
   );
   const protocolKit = await Safe.init({
     provider: (hardhatNetwork.config as any).url,
