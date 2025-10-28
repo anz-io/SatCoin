@@ -1,0 +1,30 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "guard",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "module",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "registry",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      }
+    ],
+    "name": "initializeSafe",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
