@@ -119,7 +119,7 @@ describe("SatCoinNFT", function () {
 
     await expect(nft.connect(user1).mint(user1.address, typeId, baseTraits, signature))
       .to.emit(nft, "Minted")
-      .withArgs(user1.address, 0);
+      .withArgs(user1.address, 0, messageHash);
 
     // Verify state changes
     expect(await nft.totalSupply()).to.equal(1);

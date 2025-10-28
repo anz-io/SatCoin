@@ -49,7 +49,7 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721EnumerableUpgradeable {
     // =============================== Events ==============================
 
     event TypeInfoSet(uint16 indexed typeId, string typeName, string imageUrl);
-    event Minted(address indexed to, uint256 indexed tokenId);
+    event Minted(address indexed to, uint256 indexed tokenId, bytes32 messageHash);
 
 
     // ======================= Modifier & Initializer ======================
@@ -265,7 +265,7 @@ contract SatCoinNFT is Ownable2StepUpgradeable, ERC721EnumerableUpgradeable {
         _safeMint(to, newTokenId);
 
         // Event
-        emit Minted(to, newTokenId);
+        emit Minted(to, newTokenId, messageHash);
     }
 
 
