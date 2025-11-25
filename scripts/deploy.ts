@@ -7,14 +7,15 @@ async function main() {
   
   // await deployUpgradeableContract("ProofOfReserve", [], true)
   // await deployUpgradeableContract("SatCoin", [], true)
-  await deployUpgradeableContract("SatCoinNFT", [
-    "SatCoin NFT - Test 3", "SatCoin NFT - Test 3", admin.address, admin.address,
-  ], true)
+  // await deployUpgradeableContract("SatCoinNFT", [
+  //   "SatCoin NFT - Test 3", "SatCoin NFT - Test 3", admin.address, admin.address,
+  // ], true)
 
   // await deployUpgradeableContract("SubscriptionGuard", [admin.address], true)
   // await deployUpgradeableContract("SpendingPolicyModule", [], true)
   // await deployUpgradeableContract("WalletNameRegistry", [], true)
-  // await deployContract("WalletInitializer", [], true)
+  
+  await deployContract("WalletInitializer", [], true)
 
 }
 

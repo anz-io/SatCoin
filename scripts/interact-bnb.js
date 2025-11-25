@@ -4,6 +4,9 @@ require("dotenv").config()
 let RESET = "\x1b[0m"
 let GREEN = "\x1b[32m"
 
+let por = await ethers.getContractAt("ProofOfReserve", process.env.BNB_POR)
+await por.owner()
+
 let tellerFactory = await ethers.getContractFactory("Teller")
 let teller = await upgrades.deployProxy(tellerFactory, [
   process.env.ADDRESS_ADMIN, process.env.BNB_STC, process.env.BNB_ORACLE_BTCUSD,

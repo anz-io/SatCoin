@@ -18,6 +18,9 @@ interface IWalletNameRegistry {
  */
 contract WalletInitializer {
 
+    /// @notice Emitted when a SatCoin Smart Wallet is initialized.
+    event SatcoinWalletInitialized(address indexed safe, string name);
+
     /**
      * @notice Sets the initial Guard and enables the initial Module for a new Safe wallet.
      * @param guard The address of the `SubscriptionGuard` contract.
@@ -49,6 +52,9 @@ contract WalletInitializer {
         if (registry != address(0) && bytes(name).length > 0) {
             IWalletNameRegistry(registry).setName(name);
         }
+
+        // 4. Emit the event (by the caller, not this contract)
+        emit SatcoinWalletInitialized(address(this), name);
     }
     
 }
