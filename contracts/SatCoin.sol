@@ -31,4 +31,13 @@ contract SatCoin is ERC20Upgradeable, Ownable2StepUpgradeable {
     function mint(address to, uint256 amount) public onlyOwner {
         _mint(to, amount);
     }
+
+    /**
+     * @notice Burns tokens from the caller's address
+     * @param amount The amount of tokens to burn
+     */
+    function burn(uint256 amount) public {
+        _burn(_msgSender(), amount);
+    }
+    
 }
